@@ -6,7 +6,8 @@ const api = {
     set: (key: string, value: any) => ipcRenderer.invoke('store:set', key, value)
   },
   dialog: {
-    openFile: () => ipcRenderer.invoke('dialog:openFile')
+    openFile: () => ipcRenderer.invoke('dialog:openFile'),
+    openFileRemote: (dir?: string) => ipcRenderer.invoke('dialog:openFileRemote', dir)
   },
   craftctl: {
     check: () => ipcRenderer.invoke('craftctl:check'),
@@ -29,7 +30,8 @@ const api = {
     }) => ipcRenderer.invoke('ssh:connect', config),
     testConnect: (config: any) => ipcRenderer.invoke('ssh:testConnect', config),
     execute: (command: string) => ipcRenderer.invoke('ssh:execute', command),
-    disconnect: () => ipcRenderer.invoke('ssh:disconnect')
+    disconnect: () => ipcRenderer.invoke('ssh:disconnect'),
+    checkConnection: () => ipcRenderer.invoke('ssh:checkConnection')
   },
   db: {
     getSSHConfigs: () => ipcRenderer.invoke('db:getSSHConfigs'),

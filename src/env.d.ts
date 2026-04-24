@@ -14,6 +14,7 @@ interface Window {
     }
     dialog: {
       openFile: () => Promise<string | null>
+      openFileRemote: (dir?: string) => Promise<{ dir: string; files: { name: string; isDir: boolean }[] } | null>
     }
     craftctl: {
       check: () => Promise<{ available: boolean; path: string }>
@@ -47,6 +48,7 @@ interface Window {
         duration: number
       }>
       disconnect: () => Promise<{ success: boolean }>
+      checkConnection: () => Promise<{ connected: boolean }>
     }
     db: {
       getSSHConfigs: () => Promise<any[]>

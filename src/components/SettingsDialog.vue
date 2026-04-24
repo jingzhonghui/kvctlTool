@@ -2,13 +2,17 @@
 import { ref, computed, watch } from 'vue'
 import { useSettingsStore } from '../stores/settings'
 import { useConnectionStore } from '../stores/connection'
+import { useSSHStore } from '../stores/ssh'
+import RemoteFileBrowserDialog from './RemoteFileBrowserDialog.vue'
 
 const settingsStore = useSettingsStore()
 const connectionStore = useConnectionStore()
+const sshStore = useSSHStore()
 
 const toolPath = ref('')
 const outputFontSize = ref(14)
 const uiFontSize = ref(14)
+const showRemoteBrowser = ref(false)
 
 const props = defineProps<{
   visible: boolean
@@ -39,13 +43,30 @@ function cancel() {
   emit('update:visible', false)
 }
 
-function browsePath() {
-  // 使用 Electron 的 dialog API
-  window.api.dialog.openFile().then(path => {
-    if (path) {
-      toolPath.value = path
+async function browsePath() {
+  if (connectionStore.mode === 'ssh') {
+    if (!sshStore.isConnected) {
+      const result = await window.api.ssh.checkConnection()
+      if (!result.connected) {
+        alert('当前未建立 SSH 连接，请先切换到 SSH 远程模式并连接服务器后再试。')
+        return
+      }
+      sshStore.isConnected = true
     }
-  })
+    showRemoteBrowser.value = true
+    return
+  }
+
+  const path = await window.api.dialog.openFile()
+  if (path) {
+    toolPath.value = path
+  }
+}
+
+function onRemotePathSelected(path: string | null) {
+  if (path) {
+    toolPath.value = path
+  }
 }
 
 const isDark = computed(() => settingsStore.theme === 'dark')
@@ -133,6 +154,11 @@ function setTheme(dark: boolean) {
       </div>
     </div>
   </div>
+
+  <RemoteFileBrowserDialog
+    v-model:visible="showRemoteBrowser"
+    @select="onRemotePathSelected"
+  />
 </template>
 
 <style scoped>

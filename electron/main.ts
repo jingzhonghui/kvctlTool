@@ -64,6 +64,49 @@ ipcMain.handle('dialog:openFile', async () => {
   return result.canceled ? null : result.filePaths[0]
 })
 
+ipcMain.handle('dialog:openFileRemote', async (_, dir: string = '/') => {
+  if (!sshClient) {
+    return null
+  }
+
+  return new Promise((resolve) => {
+    sshClient!.sftp((err, sftp) => {
+      if (err) {
+        resolve(null)
+        return
+      }
+
+      const readDir = (targetDir: string) => {
+        sftp.readdir(targetDir, (err, list) => {
+          if (err) {
+            resolve(null)
+            return
+          }
+          resolve({
+            dir: targetDir,
+            files: list.filter(f => f.filename !== '.' && f.filename !== '..').map(f => ({
+              name: f.filename,
+              isDir: f.attrs.isDirectory()
+            }))
+          })
+        })
+      }
+
+      if (dir === '/') {
+        sftp.realpath('.', (err2, resolvedPath) => {
+          if (err2) {
+            readDir('/')
+          } else {
+            readDir(resolvedPath)
+          }
+        })
+      } else {
+        readDir(dir)
+      }
+    })
+  })
+})
+
 ipcMain.handle('craftctl:check', async () => {
   const toolPath = store.get('toolPath', 'craftctl') as string
   try {
@@ -253,6 +296,10 @@ ipcMain.handle('ssh:disconnect', () => {
     sshClient = null
   }
   return { success: true }
+})
+
+ipcMain.handle('ssh:checkConnection', () => {
+  return { connected: !!sshClient }
 })
 
 ipcMain.handle('db:getSSHConfigs', () => {
