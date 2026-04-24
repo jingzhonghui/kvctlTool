@@ -27,6 +27,7 @@ const api = {
       privateKeyPath?: string
       passphrase?: string
     }) => ipcRenderer.invoke('ssh:connect', config),
+    testConnect: (config: any) => ipcRenderer.invoke('ssh:testConnect', config),
     execute: (command: string) => ipcRenderer.invoke('ssh:execute', command),
     disconnect: () => ipcRenderer.invoke('ssh:disconnect')
   },

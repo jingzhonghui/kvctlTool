@@ -39,6 +39,7 @@ interface Window {
         privateKeyPath?: string
         passphrase?: string
       }) => Promise<{ success: boolean; error?: string }>
+      testConnect: (config: any) => Promise<{ success: boolean; error?: string }>
       execute: (command: string) => Promise<{
         stdout: string
         stderr: string

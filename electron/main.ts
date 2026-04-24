@@ -163,6 +163,62 @@ ipcMain.handle('ssh:connect', async (_, config: {
   })
 })
 
+ipcMain.handle('ssh:testConnect', async (_, config: {
+  host: string
+  port: number
+  username: string
+  authType: 'password' | 'privateKey'
+  password?: string
+  privateKeyPath?: string
+  passphrase?: string
+}) => {
+  return new Promise((resolve) => {
+    const testClient = new SSHClient()
+    
+    const connectionConfig: any = {
+      host: config.host,
+      port: config.port,
+      username: config.username
+    }
+    
+    if (config.authType === 'password') {
+      connectionConfig.password = config.password
+    } else if (config.privateKeyPath) {
+      try {
+        const fs = require('fs')
+        connectionConfig.privateKey = fs.readFileSync(config.privateKeyPath)
+        if (config.passphrase) connectionConfig.passphrase = config.passphrase
+      } catch (err: any) {
+        resolve({ success: false, error: `无法读取私钥文件: ${err.message}` })
+        return
+      }
+    }
+    
+    const timeout = setTimeout(() => {
+      testClient.end()
+      resolve({ success: false, error: '连接超时 (10秒)' })
+    }, 10000)
+    
+    testClient.on('ready', () => {
+      clearTimeout(timeout)
+      testClient.end()
+      resolve({ success: true })
+    })
+    
+    testClient.on('error', (err) => {
+      clearTimeout(timeout)
+      resolve({ success: false, error: err.message })
+    })
+    
+    try {
+      testClient.connect(connectionConfig)
+    } catch (err: any) {
+      clearTimeout(timeout)
+      resolve({ success: false, error: err.message })
+    }
+  })
+})
+
 ipcMain.handle('ssh:execute', async (_, command: string) => {
   return new Promise((resolve) => {
     if (!sshClient) {
