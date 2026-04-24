@@ -10,15 +10,18 @@ import SSHManager from './components/SSHManager.vue'
 import OutputTerminal from './components/OutputTerminal.vue'
 import CommandBar from './components/CommandBar.vue'
 import AppHeader from './components/AppHeader.vue'
+import SettingsDialog from './components/SettingsDialog.vue'
 
 const connectionStore = useConnectionStore()
 const outputStore = useOutputStore()
 const settingsStore = useSettingsStore()
 
 const executeMode = ref<'local' | 'ssh'>('local')
+const showSettings = ref(false)
 
 onMounted(async () => {
   await settingsStore.loadSettings()
+  await connectionStore.loadToolPath()
   const savedMode = await window.api.store.get('executeMode')
   if (savedMode) executeMode.value = savedMode
   
@@ -42,6 +45,10 @@ function toggleTheme() {
   settingsStore.toggleTheme()
 }
 
+function openSettings() {
+  showSettings.value = true
+}
+
 const currentModeLabel = computed(() => {
   return executeMode.value === 'local' ? '本地模式' : 'SSH 远程'
 })
@@ -54,6 +61,7 @@ const currentModeLabel = computed(() => {
       @toggle-mode="toggleMode"
       @clear-output="clearOutput"
       @toggle-theme="toggleTheme"
+      @open-settings="openSettings"
     />
     
     <div class="app-body">
@@ -69,6 +77,8 @@ const currentModeLabel = computed(() => {
         <CommandBar />
       </main>
     </div>
+    
+    <SettingsDialog v-model:visible="showSettings" />
     
     <div class="toast-container">
       <div 

@@ -7,6 +7,7 @@ export const useSettingsStore = defineStore('settings', () => {
   const keysOnly = ref(false)
   const preserveOutput = ref(false)
   const outputFontSize = ref(14)
+  const uiFontSize = ref(14)
   const autoScroll = ref(true)
 
   async function loadSettings() {
@@ -16,11 +17,13 @@ export const useSettingsStore = defineStore('settings', () => {
       keysOnly.value = saved.keysOnly ?? false
       preserveOutput.value = saved.preserveOutput ?? false
       outputFontSize.value = saved.outputFontSize ?? 14
+      uiFontSize.value = saved.uiFontSize ?? 14
       autoScroll.value = saved.autoScroll ?? true
       theme.value = saved.theme ?? 'dark'
     }
     applyTheme()
     applyElementPlusTheme()
+    applyFontSizes()
   }
 
   async function saveSettings() {
@@ -29,9 +32,27 @@ export const useSettingsStore = defineStore('settings', () => {
       keysOnly: keysOnly.value,
       preserveOutput: preserveOutput.value,
       outputFontSize: outputFontSize.value,
+      uiFontSize: uiFontSize.value,
       autoScroll: autoScroll.value,
       theme: theme.value
     })
+  }
+
+  function applyFontSizes() {
+    document.documentElement.style.setProperty('--output-font-size', `${outputFontSize.value}px`)
+    document.documentElement.style.setProperty('--ui-font-size', `${uiFontSize.value}px`)
+  }
+
+  function setOutputFontSize(size: number) {
+    outputFontSize.value = size
+    applyFontSizes()
+    saveSettings()
+  }
+
+  function setUiFontSize(size: number) {
+    uiFontSize.value = size
+    applyFontSizes()
+    saveSettings()
   }
 
   function applyTheme() {
@@ -91,12 +112,15 @@ export const useSettingsStore = defineStore('settings', () => {
     keysOnly,
     preserveOutput,
     outputFontSize,
+    uiFontSize,
     autoScroll,
     loadSettings,
     saveSettings,
     toggleTheme,
     togglePrefixQuery,
     toggleKeysOnly,
-    togglePreserveOutput
+    togglePreserveOutput,
+    setOutputFontSize,
+    setUiFontSize
   }
 })

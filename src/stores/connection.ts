@@ -8,12 +8,23 @@ export const useConnectionStore = defineStore('connection', () => {
   const port = ref(7375)
   const mode = ref<'local' | 'ssh'>('local')
   const history = ref<any[]>([])
+  const toolPath = ref('craftctl')
   const selectedAddress = ref('')
 
   const endpoint = computed(() => `${protocol.value}://${host.value}:${port.value}`)
 
   async function setMode(newMode: 'local' | 'ssh') {
     mode.value = newMode
+  }
+
+  async function setToolPath(path: string) {
+    toolPath.value = path
+    await window.api.store.set('toolPath', path)
+  }
+
+  async function loadToolPath() {
+    const saved = await window.api.store.get('toolPath')
+    if (saved) toolPath.value = saved
   }
 
   async function saveAddress() {
@@ -31,7 +42,7 @@ export const useConnectionStore = defineStore('connection', () => {
 
   async function loadHistory() {
     const addresses = await window.api.db.getServiceAddresses()
-    history.value = addresses
+    history.value = addresses || []
   }
 
   return {
@@ -40,8 +51,11 @@ export const useConnectionStore = defineStore('connection', () => {
     port,
     mode,
     history,
+    toolPath,
     endpoint,
     setMode,
+    setToolPath,
+    loadToolPath,
     saveAddress,
     loadHistory
   }

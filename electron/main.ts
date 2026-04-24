@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain } from 'electron'
+import { app, BrowserWindow, ipcMain, dialog } from 'electron'
 import { join } from 'path'
 import { spawn, execSync } from 'child_process'
 import Store from 'electron-store'
@@ -53,12 +53,24 @@ app.on('window-all-closed', () => {
 ipcMain.handle('store:get', (_, key: string) => store.get(key))
 ipcMain.handle('store:set', (_, key: string, value: any) => store.set(key, value))
 
-ipcMain.handle('craftctl:check', () => {
+ipcMain.handle('dialog:openFile', async () => {
+  const result = await dialog.showOpenDialog(mainWindow!, {
+    properties: ['openFile'],
+    filters: [
+      { name: 'Executables', extensions: ['exe', 'bat', 'cmd', 'sh'] },
+      { name: 'All Files', extensions: ['*'] }
+    ]
+  })
+  return result.canceled ? null : result.filePaths[0]
+})
+
+ipcMain.handle('craftctl:check', async () => {
+  const toolPath = store.get('toolPath', 'craftctl') as string
   try {
-    execSync('craftctl --version', { stdio: 'ignore' })
-    return { available: true }
+    execSync(`${toolPath} --version`, { stdio: 'ignore' })
+    return { available: true, path: toolPath }
   } catch {
-    return { available: false }
+    return { available: false, path: toolPath }
   }
 })
 
@@ -68,13 +80,14 @@ ipcMain.handle('craftctl:execute', async (_, params: {
   endpoint: string
   options?: { prefix?: boolean; keys?: boolean }
 }) => {
+  const toolPath = store.get('toolPath', 'craftctl') as string
   const startTime = Date.now()
   const args = params.options?.prefix ? ['--prefix'] : []
   if (params.options?.keys) args.push('--keys')
   
   return new Promise((resolve) => {
     const endpoint = params.endpoint.replace('tcp://', '').replace('udp://', '')
-    const proc = spawn('craftctl', [...args, '-e', endpoint, ...params.command.split(' ')])
+    const proc = spawn(toolPath, [...args, '-e', endpoint, ...params.command.split(' ')])
     
     let stdout = ''
     let stderr = ''

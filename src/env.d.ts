@@ -12,8 +12,11 @@ interface Window {
       get: (key: string) => Promise<any>
       set: (key: string, value: any) => Promise<void>
     }
+    dialog: {
+      openFile: () => Promise<string | null>
+    }
     craftctl: {
-      check: () => Promise<{ available: boolean }>
+      check: () => Promise<{ available: boolean; path: string }>
       execute: (params: {
         command: string
         mode: string
