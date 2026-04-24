@@ -1,0 +1,43 @@
+node_modules/
+dist/
+dist-electron/
+build/
+
+# Electron
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Local env files
+.env
+.env.local
+.env.*.local
+
+# Log files
+*.log
+logs/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/*
+!.vscode/extensions.json
+.idea/
+*.swp
+*.swo
+*~
+
+# Qt old files (oldsrc is for reference only)
+oldsrc/*.o
+oldsrc/*.obj
+oldsrc/moc_*
+oldsrc/qrc_*
+oldsrc/ui_*
+
+# Build output
+out/
+release/
