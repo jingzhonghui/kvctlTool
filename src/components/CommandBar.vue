@@ -81,7 +81,7 @@ onUnmounted(() => {
       <input 
         class="cmd-input" 
         v-model="customCommand" 
-        placeholder="输入自定义 craftctl 命令，如: put config.json '{...}'"
+        placeholder="输入自定义命令，如: -h"
         :disabled="loading"
         @keydown="handleKeydown"
       />
