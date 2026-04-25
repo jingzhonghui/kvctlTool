@@ -3,7 +3,7 @@ import { ref, computed } from 'vue'
 import { v4 as uuidv4 } from 'uuid'
 
 export const useConnectionStore = defineStore('connection', () => {
-  const protocol = ref<'tcp' | 'udp'>('tcp')
+  const protocol = ref<'tcp' | 'udp' | 'http'>('tcp')
   const host = ref('127.0.0.1')
   const port = ref(7375)
   const mode = ref<'local' | 'ssh'>('local')
@@ -12,6 +12,13 @@ export const useConnectionStore = defineStore('connection', () => {
   const selectedAddress = ref('')
 
   const endpoint = computed(() => `${protocol.value}://${host.value}:${port.value}`)
+
+  const endpointFlag = computed(() => {
+    if (protocol.value === 'http') {
+      return `--endpoints=${endpoint.value}`
+    }
+    return `-e ${endpoint.value}`
+  })
 
   async function setMode(newMode: 'local' | 'ssh') {
     mode.value = newMode
@@ -53,6 +60,7 @@ export const useConnectionStore = defineStore('connection', () => {
     history,
     toolPath,
     endpoint,
+    endpointFlag,
     setMode,
     setToolPath,
     loadToolPath,

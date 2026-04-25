@@ -14,47 +14,49 @@ const sshStore = useSSHStore()
 const customCommand = ref('')
 const loading = ref(false)
 
-const endpoint = () => `${connectionStore.protocol}://${connectionStore.host}:${connectionStore.port}`
-
 async function executeCustomCommand() {
   if (!customCommand.value.trim()) {
     outputStore.addToast('请输入要执行的命令', 'warning')
     return
   }
-  
+  if (connectionStore.mode === 'ssh' && !sshStore.isConnected) {
+    outputStore.addToast('当前未建立 SSH 连接，请先连接服务器后再执行命令', 'error')
+    return
+  }
+
   loading.value = true
   outputStore.addToast('正在执行...', 'success')
-  
+
   let result: any
-  
+
   if (connectionStore.mode === 'ssh' && sshStore.isConnected) {
-    result = await window.api.ssh.execute(`craftctl -e ${endpoint()} ${customCommand.value}`)
+    result = await window.api.ssh.execute(`${connectionStore.toolPath} ${connectionStore.endpointFlag} ${customCommand.value}`)
   } else {
     result = await window.api.craftctl.execute({
       command: customCommand.value,
       mode: connectionStore.mode,
-      endpoint: endpoint(),
+      endpoint: connectionStore.endpoint,
       options: {
         prefix: settingsStore.prefixQuery,
         keys: settingsStore.keysOnly
       }
     })
   }
-  
+
   if (!settingsStore.preserveOutput) {
     outputStore.clear()
   }
-  
+
   outputStore.addOutput({
     id: uuidv4(),
-    command: `craftctl -e ${endpoint()} ${customCommand.value}`,
+    command: `${connectionStore.toolPath} ${connectionStore.endpointFlag} ${customCommand.value}`,
     stdout: result.stdout,
     stderr: result.stderr,
     exitCode: result.exitCode,
     duration: result.duration,
     timestamp: Date.now()
   })
-  
+
   await connectionStore.saveAddress()
   customCommand.value = ''
   loading.value = false

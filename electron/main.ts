@@ -128,10 +128,11 @@ ipcMain.handle('craftctl:execute', async (_, params: {
   const startTime = Date.now()
   const args = params.options?.prefix ? ['--prefix'] : []
   if (params.options?.keys) args.push('--keys')
-  
+
   return new Promise((resolve) => {
-    const endpoint = params.endpoint.replace('tcp://', '').replace('udp://', '')
-    const proc = spawn(toolPath, [...args, '-e', endpoint, ...params.command.split(' ')])
+    const endpoint = params.endpoint
+    const endpointArgs = endpoint.startsWith('http://') ? [`--endpoints=${endpoint}`] : ['-e', endpoint.replace('tcp://', '').replace('udp://', '')]
+    const proc = spawn(toolPath, [...args, ...endpointArgs, ...params.command.split(' ')])
     
     let stdout = ''
     let stderr = ''

@@ -15,8 +15,6 @@ const key = ref('')
 const value = ref('')
 const loading = ref(false)
 
-const endpoint = () => `${connectionStore.protocol}://${connectionStore.host}:${connectionStore.port}`
-
 async function executeCommand(cmd: string, args: string[] = []) {
   if (!key.value && (cmd === 'get' || cmd === 'del')) {
     outputStore.addToast('请输入 Key', 'warning')
@@ -26,7 +24,11 @@ async function executeCommand(cmd: string, args: string[] = []) {
     outputStore.addToast('请输入 Value', 'warning')
     return
   }
-  
+  if (connectionStore.mode === 'ssh' && !sshStore.isConnected) {
+    outputStore.addToast('当前未建立 SSH 连接，请先连接服务器后再执行命令', 'error')
+    return
+  }
+
   loading.value = true
   outputStore.addToast('正在执行...', 'success')
 
@@ -34,39 +36,39 @@ async function executeCommand(cmd: string, args: string[] = []) {
   const fullCmd = `${cmd} ${args.join(' ')}`.trim()
 
   if (connectionStore.mode === 'ssh' && sshStore.isConnected) {
-    result = await window.api.ssh.execute(`craftctl -e ${endpoint()} ${fullCmd}`)
+    result = await window.api.ssh.execute(`${connectionStore.toolPath} ${connectionStore.endpointFlag} ${fullCmd}`)
   } else {
     result = await window.api.craftctl.execute({
       command: fullCmd,
       mode: connectionStore.mode,
-      endpoint: endpoint(),
+      endpoint: connectionStore.endpoint,
       options: {
         prefix: settingsStore.prefixQuery,
         keys: settingsStore.keysOnly
       }
     })
   }
-  
+
   if (!settingsStore.preserveOutput) {
     outputStore.clear()
   }
-  
+
   outputStore.addOutput({
     id: uuidv4(),
-    command: `craftctl -e ${endpoint()} ${cmd} ${cmd === 'put' ? `${key.value} ${value.value}` : key.value}`,
+    command: `${connectionStore.toolPath} ${connectionStore.endpointFlag} ${cmd} ${cmd === 'put' ? `${key.value} ${value.value}` : key.value}`,
     stdout: result.stdout,
     stderr: result.stderr,
     exitCode: result.exitCode,
     duration: result.duration,
     timestamp: Date.now()
   })
-  
+
   await connectionStore.saveAddress()
   loading.value = false
 }
 
 function handleGet() {
-  executeCommand('get')
+  executeCommand('get', [key.value])
 }
 
 function handlePut() {

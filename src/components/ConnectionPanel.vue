@@ -13,6 +13,7 @@ const connectionStore = useConnectionStore()
         <select class="form-select" v-model="connectionStore.protocol">
           <option value="tcp">tcp</option>
           <option value="udp">udp</option>
+          <option value="http">http</option>
         </select>
       </div>
       <div class="form-group">
