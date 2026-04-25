@@ -244,6 +244,28 @@ body {
   border-color: var(--btn-primary-bg);
 }
 
+.btn-success {
+  background: var(--success);
+  border-color: rgba(63, 185, 80, 0.6);
+  color: #fff;
+}
+
+.btn-success:hover {
+  background: #4ac262;
+  border-color: var(--success);
+}
+
+.btn-danger {
+  background: #a83228;
+  border-color: rgba(168, 50, 40, 0.6);
+  color: #fff;
+}
+
+.btn-danger:hover {
+  background: #c0392b;
+  border-color: #a83228;
+}
+
 .switch-item {
   display: flex;
   align-items: center;

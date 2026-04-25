@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useConnectionStore } from './stores/connection'
 import { useOutputStore } from './stores/output'
 import { useSettingsStore } from './stores/settings'
+import { useSSHStore } from './stores/ssh'
 import ConnectionPanel from './components/ConnectionPanel.vue'
 import KVOperationPanel from './components/KVOperationPanel.vue'
 import AdvancedOptions from './components/AdvancedOptions.vue'
@@ -15,6 +16,7 @@ import SettingsDialog from './components/SettingsDialog.vue'
 const connectionStore = useConnectionStore()
 const outputStore = useOutputStore()
 const settingsStore = useSettingsStore()
+const sshStore = useSSHStore()
 
 const executeMode = ref<'local' | 'ssh'>('local')
 const showSettings = ref(false)
@@ -22,6 +24,7 @@ const showSettings = ref(false)
 onMounted(async () => {
   await settingsStore.loadSettings()
   await connectionStore.loadToolPath()
+  await connectionStore.loadLocalConnection()
   executeMode.value = 'local'
   connectionStore.setMode('local')
 
@@ -33,10 +36,38 @@ onMounted(async () => {
 })
 
 function toggleMode(mode: 'local' | 'ssh') {
+  if (executeMode.value === mode) return
+
+  // 先保存当前模式的连接配置
+  connectionStore.saveCurrentConnection()
+
   executeMode.value = mode
   connectionStore.setMode(mode)
   window.api.store.set('executeMode', mode)
+
+  if (mode === 'local') {
+    connectionStore.loadLocalConnection()
+  } else if (mode === 'ssh') {
+    // 切换到 SSH 模式时，加载当前选中的 SSH 配置对应的连接信息
+    if (sshStore.selectedConfigId) {
+      connectionStore.loadSSHConnection(sshStore.selectedConfigId)
+    }
+  }
 }
+
+// 监听 SSH 选中的配置变化，自动加载/保存关联的连接配置
+watch(() => sshStore.selectedConfigId, (newId, oldId) => {
+  if (executeMode.value !== 'ssh') return
+
+  // 保存旧配置
+  if (oldId) {
+    connectionStore.saveSSHConnection(oldId)
+  }
+  // 加载新配置
+  if (newId) {
+    connectionStore.loadSSHConnection(newId)
+  }
+})
 
 function clearOutput() {
   outputStore.clear()

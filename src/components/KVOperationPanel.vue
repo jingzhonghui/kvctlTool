@@ -98,8 +98,8 @@ function handleMemberList() {
     <div class="btn-grid">
       <button class="btn btn-primary" @click="handleGet" :disabled="loading">get</button>
       <button class="btn btn-primary" @click="handlePut" :disabled="loading">put</button>
-      <button class="btn" @click="handleMemberList" :disabled="loading">member list</button>
-      <button class="btn" @click="handleDel" :disabled="loading">del</button>
+      <button class="btn btn-primary" @click="handleMemberList" :disabled="loading">member list</button>
+      <button class="btn btn-danger" @click="handleDel" :disabled="loading">del</button>
     </div>
   </div>
 </template>
