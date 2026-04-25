@@ -41,7 +41,7 @@ const settingsStore = useSettingsStore()
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2">
         <polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/>
       </svg>
-      kvctlTool <span class="version">v2.0</span>
+      kvctlTool <span class="version"></span>
     </div>
     <div class="header-actions">
       <button class="icon-btn" title="清空输出 (Ctrl+L)" @click="emit('clear-output')">
