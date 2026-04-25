@@ -74,12 +74,6 @@ watch(() => outputStore.outputs.length, async () => {
     outputAreaRef.value.scrollTop = outputAreaRef.value.scrollHeight
   }
 })
-
-const scrollToBottom = () => {
-  if (outputAreaRef.value) {
-    outputAreaRef.value.scrollTop = outputAreaRef.value.scrollHeight
-  }
-}
 </script>
 
 <template>

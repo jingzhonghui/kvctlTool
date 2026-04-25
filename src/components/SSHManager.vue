@@ -49,19 +49,13 @@ function openEditDialog(config: any) {
   showDialog.value = true
 }
 
-async function handleDelete(id: string) {
-  if (confirm('确认删除该 SSH 配置?')) {
-    await sshStore.deleteConfig(id)
-  }
-}
-
 function openAddDialog() {
   editingConfig.value = {
     id: uuidv4(),
     name: '',
     host: '',
     port: 22,
-    username: '',
+    username: 'root',
     authType: 'password',
     password: '',
     privateKeyPath: '',
@@ -71,69 +65,41 @@ function openAddDialog() {
   showDialog.value = true
 }
 
-async function testConnection() {
-  if (!editingConfig.value.host || !editingConfig.value.username) {
-    testingError.value = '请填写主机、端口和用户名'
-    return
+async function handleDelete(id: string) {
+  if (confirm('确认删除该 SSH 配置?')) {
+    await sshStore.deleteConfig(id)
   }
-  if (editingConfig.value.authType === 'password' && !editingConfig.value.password) {
-    testingError.value = '请填写密码'
-    return
-  }
-  if (editingConfig.value.authType === 'privateKey' && !editingConfig.value.privateKeyPath) {
-    testingError.value = '请填写私钥路径'
-    return
-  }
-  
-  testing.value = true
-  testingError.value = ''
-  
-  const config = JSON.parse(JSON.stringify(editingConfig.value))
-  const result = await window.api.ssh.testConnect(config)
-  
-  testing.value = false
-  
-  if (result.success) {
-    testingError.value = ''
-    outputStore.addToast('连接测试成功!', 'success')
-  } else {
-    testingError.value = result.error || '连接失败'
-  }
-}
-
-async function saveConfig() {
-  if (!editingConfig.value?.name || !editingConfig.value?.host || !editingConfig.value?.username) {
-    testingError.value = '请填写名称、主机和用户名'
-    return
-  }
-  if (editingConfig.value.authType === 'password' && !editingConfig.value.password) {
-    testingError.value = '请填写密码'
-    return
-  }
-  if (editingConfig.value.authType === 'privateKey' && !editingConfig.value.privateKeyPath) {
-    testingError.value = '请填写私钥路径'
-    return
-  }
-  
-  const config = JSON.parse(JSON.stringify(editingConfig.value))
-  config.createdAt = Date.now()
-  config.updatedAt = Date.now()
-  try {
-    await sshStore.saveConfig(config)
-    showDialog.value = false
-    editingConfig.value = null
-    outputStore.addToast('SSH 配置已保存', 'success')
-  } catch (err: any) {
-    testingError.value = err.message || '保存失败'
-  }
-}
-
-async function deleteConfig(id: string) {
-  await sshStore.deleteConfig(id)
 }
 
 function closeDialog() {
   showDialog.value = false
+}
+
+async function testConnection() {
+  testing.value = true
+  testingError.value = ''
+  try {
+    const result = await window.api.ssh.testConnect(editingConfig.value)
+    if (result.success) {
+      outputStore.addToast('连接成功', 'success')
+    } else {
+      testingError.value = result.error || '连接失败'
+    }
+  } catch (err: any) {
+    testingError.value = err.message || '测试失败'
+  } finally {
+    testing.value = false
+  }
+}
+
+async function saveConfig() {
+  try {
+    await sshStore.saveConfig(editingConfig.value)
+    outputStore.addToast('SSH 配置已保存', 'success')
+    showDialog.value = false
+  } catch (err: any) {
+    testingError.value = err.message || '保存失败'
+  }
 }
 </script>
 

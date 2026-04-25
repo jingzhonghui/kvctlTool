@@ -1,6 +1,4 @@
 <script setup lang="ts">
-import { useSettingsStore } from '../stores/settings'
-
 defineProps<{
   executeMode: 'local' | 'ssh'
 }>()
@@ -11,8 +9,6 @@ const emit = defineEmits<{
   (e: 'toggle-theme'): void
   (e: 'open-settings'): void
 }>()
-
-const settingsStore = useSettingsStore()
 </script>
 
 <template>

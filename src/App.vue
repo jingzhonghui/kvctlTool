@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, watch, onUnmounted } from 'vue'
+import { ref, onMounted, watch, onUnmounted } from 'vue'
 import { useConnectionStore } from './stores/connection'
 import { useOutputStore } from './stores/output'
 import { useSettingsStore } from './stores/settings'
@@ -52,7 +52,7 @@ onUnmounted(() => {
   stopResize()
 })
 
-function startResize(e: MouseEvent) {
+function startResize() {
   isResizing.value = true
   document.body.style.cursor = 'col-resize'
   document.body.style.userSelect = 'none'
@@ -131,10 +131,6 @@ function toggleTheme() {
 function openSettings() {
   showSettings.value = true
 }
-
-const currentModeLabel = computed(() => {
-  return executeMode.value === 'local' ? '本地模式' : 'SSH 远程'
-})
 </script>
 
 <template>

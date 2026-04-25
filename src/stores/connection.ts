@@ -15,7 +15,6 @@ export const useConnectionStore = defineStore('connection', () => {
   const mode = ref<'local' | 'ssh'>('local')
   const history = ref<any[]>([])
   const toolPath = ref('craftctl')
-  const selectedAddress = ref('')
   const currentSshConfigId = ref<string | null>(null)
 
   const endpoint = computed(() => `${protocol.value}://${host.value}:${port.value}`)
