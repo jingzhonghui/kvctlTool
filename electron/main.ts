@@ -64,7 +64,7 @@ ipcMain.handle('dialog:openFile', async () => {
   return result.canceled ? null : result.filePaths[0]
 })
 
-ipcMain.handle('dialog:openFileRemote', async (_, dir: string = '/') => {
+ipcMain.handle('dialog:openFileRemote', async (_, dir: string = '') => {
   if (!sshClient) {
     return null
   }
@@ -92,7 +92,7 @@ ipcMain.handle('dialog:openFileRemote', async (_, dir: string = '/') => {
         })
       }
 
-      if (dir === '/') {
+      if (!dir) {
         sftp.realpath('.', (err2, resolvedPath) => {
           if (err2) {
             readDir('/')

@@ -16,6 +16,7 @@ const showRemoteBrowser = ref(false)
 
 const props = defineProps<{
   visible: boolean
+  executeMode: 'local' | 'ssh'
 }>()
 
 const emit = defineEmits<{
@@ -44,7 +45,8 @@ function cancel() {
 }
 
 async function browsePath() {
-  if (connectionStore.mode === 'ssh') {
+  const mode = props.executeMode || connectionStore.mode
+  if (mode === 'ssh') {
     if (!sshStore.isConnected) {
       const result = await window.api.ssh.checkConnection()
       if (!result.connected) {

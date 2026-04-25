@@ -28,7 +28,7 @@ const selectedPath = ref('')
 
 watch(() => props.visible, (val) => {
   if (val) {
-    loadDirectory('/')
+    loadDirectory('')
   } else {
     error.value = ''
     selectedPath.value = ''

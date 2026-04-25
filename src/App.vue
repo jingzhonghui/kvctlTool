@@ -22,12 +22,13 @@ const showSettings = ref(false)
 onMounted(async () => {
   await settingsStore.loadSettings()
   await connectionStore.loadToolPath()
-  const savedMode = await window.api.store.get('executeMode')
-  if (savedMode) executeMode.value = savedMode
-  
+  executeMode.value = 'local'
+  connectionStore.setMode('local')
+
   const checkResult = await window.api.craftctl.check()
   if (!checkResult.available) {
     executeMode.value = 'ssh'
+    connectionStore.setMode('ssh')
   }
 })
 
@@ -78,7 +79,7 @@ const currentModeLabel = computed(() => {
       </main>
     </div>
     
-    <SettingsDialog v-model:visible="showSettings" />
+    <SettingsDialog v-model:visible="showSettings" :execute-mode="executeMode" />
     
     <div class="toast-container">
       <div 

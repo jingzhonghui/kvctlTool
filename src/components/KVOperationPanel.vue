@@ -3,11 +3,13 @@ import { ref } from 'vue'
 import { useConnectionStore } from '../stores/connection'
 import { useOutputStore } from '../stores/output'
 import { useSettingsStore } from '../stores/settings'
+import { useSSHStore } from '../stores/ssh'
 import { v4 as uuidv4 } from 'uuid'
 
 const connectionStore = useConnectionStore()
 const outputStore = useOutputStore()
 const settingsStore = useSettingsStore()
+const sshStore = useSSHStore()
 
 const key = ref('')
 const value = ref('')
@@ -27,16 +29,23 @@ async function executeCommand(cmd: string, args: string[] = []) {
   
   loading.value = true
   outputStore.addToast('正在执行...', 'success')
-  
-  const result = await window.api.craftctl.execute({
-    command: `${cmd} ${args.join(' ')}`.trim(),
-    mode: connectionStore.mode,
-    endpoint: endpoint(),
-    options: {
-      prefix: settingsStore.prefixQuery,
-      keys: settingsStore.keysOnly
-    }
-  })
+
+  let result: any
+  const fullCmd = `${cmd} ${args.join(' ')}`.trim()
+
+  if (connectionStore.mode === 'ssh' && sshStore.isConnected) {
+    result = await window.api.ssh.execute(`craftctl -e ${endpoint()} ${fullCmd}`)
+  } else {
+    result = await window.api.craftctl.execute({
+      command: fullCmd,
+      mode: connectionStore.mode,
+      endpoint: endpoint(),
+      options: {
+        prefix: settingsStore.prefixQuery,
+        keys: settingsStore.keysOnly
+      }
+    })
+  }
   
   if (!settingsStore.preserveOutput) {
     outputStore.clear()
