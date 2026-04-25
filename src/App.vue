@@ -79,22 +79,29 @@ function stopResize() {
   window.api.store.set('sidebarWidth', sidebarWidth.value)
 }
 
-function toggleMode(mode: 'local' | 'ssh') {
+async function toggleMode(mode: 'local' | 'ssh') {
   if (executeMode.value === mode) return
 
-  // 先保存当前模式的连接配置
-  connectionStore.saveCurrentConnection()
-
+  const oldMode = executeMode.value
   executeMode.value = mode
   connectionStore.setMode(mode)
-  window.api.store.set('executeMode', mode)
+  await window.api.store.set('executeMode', mode)
+
+  if (oldMode === 'local') {
+    await connectionStore.saveLocalConnection()
+  } else if (oldMode === 'ssh') {
+    if (sshStore.selectedConfigId) {
+      await connectionStore.saveSSHConnection(sshStore.selectedConfigId)
+    }
+  }
 
   if (mode === 'local') {
-    connectionStore.loadLocalConnection()
+    await connectionStore.loadLocalConnection()
   } else if (mode === 'ssh') {
-    // 切换到 SSH 模式时，加载当前选中的 SSH 配置对应的连接信息
     if (sshStore.selectedConfigId) {
-      connectionStore.loadSSHConnection(sshStore.selectedConfigId)
+      await connectionStore.loadSSHConnection(sshStore.selectedConfigId)
+    } else {
+      connectionStore.resetToDefaults()
     }
   }
 }

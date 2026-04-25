@@ -37,9 +37,10 @@ export const useOutputStore = defineStore('output', () => {
       type
     }
     toasts.value.push(toast)
+    const duration = type === 'error' ? 3000 : 1000
     setTimeout(() => {
       toasts.value = toasts.value.filter(t => t.id !== toast.id)
-    }, 3000)
+    }, duration)
   }
 
   return {

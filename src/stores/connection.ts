@@ -159,6 +159,7 @@ export const useConnectionStore = defineStore('connection', () => {
     saveSSHConnection,
     saveCurrentConnection,
     saveAddress,
-    loadHistory
+    loadHistory,
+    resetToDefaults
   }
 })
