@@ -20,17 +20,17 @@ jobs:
           - os: windows-latest
             name: Windows
             artifact_name: kvctlTools-win-x64
-            build_cmd: npm run electron:build:win:all
+            build_cmd: npm run build:win:all
             artifact_pattern: '*.exe,*.zip'
           - os: ubuntu-latest
             name: Linux
             artifact_name: kvctlTools-linux-x64
-            build_cmd: npm run electron:build:linux
+            build_cmd: npm run build:linux
             artifact_pattern: '*.AppImage,*.deb,*.rpm,*.tar.gz'
           # - os: macos-latest
           #   name: macOS
           #   artifact_name: kvctlTools-mac
-          #   build_cmd: pnpm run electron:build:mac
+          #   build_cmd: pnpm run build:mac
           #   artifact_pattern: '*.dmg'
 
     steps:
