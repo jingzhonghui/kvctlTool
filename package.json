@@ -41,6 +41,7 @@
   "build": {
     "appId": "com.kvctltool.app",
     "productName": "kvctlTool",
+    "publish": null,
     "directories": {
       "output": "release"
     },
