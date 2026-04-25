@@ -1,12 +1,19 @@
 {
   "name": "kvctltool",
-  "version": "2.0.0",
+  "version": "1.0.0",
+  "homepage": ".",
+  "author": {
+    "name": "jzh",
+    "email": "jzh879869954@163.com"
+  },
   "description": "craftctl 命令行工具的现代化图形化客户端",
   "main": "dist-electron/main.js",
   "scripts": {
     "dev": "vite",
     "build": "vue-tsc && vite build && electron-builder",
     "build:win": "vue-tsc && vite build && electron-builder --win",
+    "build:linux": "vue-tsc && vite build && electron-builder --linux",
+    "build:mac": "vue-tsc && vite build && electron-builder --mac",
     "preview": "vite preview",
     "typecheck": "vue-tsc --noEmit"
   },
@@ -39,21 +46,65 @@
     "directories": {
       "output": "release"
     },
+    "files": [
+      "dist/**/*",
+      "dist-electron/**/*"
+    ],
     "win": {
       "target": [
         {
           "target": "nsis",
-          "arch": [
-            "x64"
-          ]
+          "arch": ["x64"]
+        },
+        {
+          "target": "portable",
+          "arch": ["x64"]
         }
       ],
-      "icon": "public/icon.ico"
+      "artifactName": "${productName}-${version}-${arch}-setup.${ext}"
     },
     "nsis": {
       "oneClick": false,
       "perMachine": false,
-      "allowToChangeInstallationDirectory": true
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "artifactName": "${productName}-${version}-${arch}-setup.${ext}"
+    },
+    "portable": {
+      "artifactName": "${productName}-${version}-${arch}-portable.${ext}"
+    },
+    "linux": {
+      "target": [
+        {
+          "target": "AppImage",
+          "arch": ["x64"]
+        },
+        {
+          "target": "deb",
+          "arch": ["x64"]
+        }
+      ],
+      "category": "Utility",
+      "artifactName": "${productName}-${version}-${arch}.${ext}",
+      "desktop": {
+        "Name": "kvctlTool",
+        "Comment": "craftctl 命令行工具的图形化客户端",
+        "Categories": "Utility;Network;"
+      }
+    },
+    "mac": {
+      "target": [
+        {
+          "target": "dmg",
+          "arch": ["x64", "arm64"]
+        }
+      ],
+      "category": "public.app-category.utilities",
+      "artifactName": "${productName}-${version}-${arch}.${ext}"
+    },
+    "dmg": {
+      "artifactName": "${productName}-${version}-${arch}.${ext}"
     }
   }
 }
