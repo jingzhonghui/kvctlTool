@@ -17,9 +17,9 @@ onMounted(() => {
   sshStore.loadConfigs()
 })
 
-function handleConnect(config: any) {
+async function handleConnect(config: any) {
   if (sshStore.selectedConfigId === config.id && sshStore.isConnected) {
-    sshStore.disconnect()
+    await sshStore.disconnect()
   } else {
     if (connectingId.value) return
     if (!config.password && config.authType === 'password') {
@@ -30,6 +30,12 @@ function handleConnect(config: any) {
       outputStore.addToast('请先在编辑中设置私钥路径', 'warning')
       return
     }
+
+    // 如果当前已有其他连接，先断开
+    if (sshStore.isConnected) {
+      await sshStore.disconnect()
+    }
+
     connectingId.value = config.id
     sshStore.selectConfig(config).finally(() => {
       connectingId.value = null

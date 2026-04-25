@@ -34,6 +34,7 @@ export const useConnectionStore = defineStore('connection', () => {
   async function setToolPath(path: string) {
     toolPath.value = path
     await window.api.store.set('toolPath', path)
+    await saveCurrentConnection()
   }
 
   async function loadToolPath() {
@@ -43,12 +44,22 @@ export const useConnectionStore = defineStore('connection', () => {
 
   // ================== 本地连接配置持久化 ==================
 
+  function resetToDefaults() {
+    protocol.value = 'tcp'
+    host.value = '127.0.0.1'
+    port.value = 7375
+    toolPath.value = 'craftctl'
+  }
+
   async function loadLocalConnection() {
     const saved = await window.api.store.get('localConnection')
     if (saved) {
-      if (saved.protocol) protocol.value = saved.protocol
-      if (saved.host) host.value = saved.host
-      if (saved.port) port.value = saved.port
+      protocol.value = saved.protocol ?? 'tcp'
+      host.value = saved.host ?? '127.0.0.1'
+      port.value = saved.port ?? 7375
+      toolPath.value = saved.toolPath ?? 'craftctl'
+    } else {
+      resetToDefaults()
     }
   }
 
@@ -57,21 +68,28 @@ export const useConnectionStore = defineStore('connection', () => {
     await window.api.store.set('localConnection', {
       protocol: protocol.value,
       host: host.value,
-      port: port.value
+      port: port.value,
+      toolPath: toolPath.value
     })
   }
 
   // ================== SSH 关联连接配置持久化 ==================
 
   async function loadSSHConnection(sshConfigId: string | null) {
-    if (!sshConfigId) return
+    if (!sshConfigId) {
+      resetToDefaults()
+      return
+    }
     currentSshConfigId.value = sshConfigId
     const map = await window.api.store.get('sshConnectionMap')
     const saved = map?.[sshConfigId]
     if (saved) {
-      if (saved.protocol) protocol.value = saved.protocol
-      if (saved.host) host.value = saved.host
-      if (saved.port) port.value = saved.port
+      protocol.value = saved.protocol ?? 'tcp'
+      host.value = saved.host ?? '127.0.0.1'
+      port.value = saved.port ?? 7375
+      toolPath.value = saved.toolPath ?? 'craftctl'
+    } else {
+      resetToDefaults()
     }
   }
 
@@ -81,7 +99,8 @@ export const useConnectionStore = defineStore('connection', () => {
     map[sshConfigId] = {
       protocol: protocol.value,
       host: host.value,
-      port: port.value
+      port: port.value,
+      toolPath: toolPath.value
     }
     await window.api.store.set('sshConnectionMap', map)
   }

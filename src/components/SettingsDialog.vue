@@ -32,9 +32,7 @@ watch(() => props.visible, (val) => {
 })
 
 function save() {
-  if (toolPath.value) {
-    connectionStore.setToolPath(toolPath.value)
-  }
+  connectionStore.setToolPath(toolPath.value || 'craftctl')
   settingsStore.setOutputFontSize(outputFontSize.value)
   settingsStore.setUiFontSize(uiFontSize.value)
   emit('update:visible', false)
@@ -96,7 +94,7 @@ function setTheme(dark: boolean) {
         <div class="settings-section">
           <div class="section-title">命令行工具</div>
           <div class="form-group">
-            <label class="form-label">craftctl 路径</label>
+            <label class="form-label">kvctl 路径</label>
             <div class="path-input-group">
               <input class="form-input" v-model="toolPath" placeholder="如：/usr/local/bin/craftctl 或 C:\tool\craftctl.exe" />
               <button class="btn" @click="browsePath">浏览</button>

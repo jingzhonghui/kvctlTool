@@ -33,7 +33,10 @@ async function executeCommand(cmd: string, args: string[] = []) {
   outputStore.addToast('正在执行...', 'success')
 
   let result: any
-  const fullCmd = `${cmd} ${args.join(' ')}`.trim()
+  const opts: string[] = []
+  if (settingsStore.prefixQuery) opts.push('--prefix')
+  if (settingsStore.keysOnly) opts.push('--keys')
+  const fullCmd = [cmd, ...args, ...opts].join(' ').trim()
 
   if (connectionStore.mode === 'ssh' && sshStore.isConnected) {
     result = await window.api.ssh.execute(`${connectionStore.toolPath} ${connectionStore.endpointFlag} ${fullCmd}`)
@@ -43,8 +46,8 @@ async function executeCommand(cmd: string, args: string[] = []) {
       mode: connectionStore.mode,
       endpoint: connectionStore.endpoint,
       options: {
-        prefix: settingsStore.prefixQuery,
-        keys: settingsStore.keysOnly
+        prefix: false,
+        keys: false
       }
     })
   }
@@ -55,7 +58,7 @@ async function executeCommand(cmd: string, args: string[] = []) {
 
   outputStore.addOutput({
     id: uuidv4(),
-    command: `${connectionStore.toolPath} ${connectionStore.endpointFlag} ${cmd} ${cmd === 'put' ? `${key.value} ${value.value}` : key.value}`,
+    command: `${connectionStore.toolPath} ${connectionStore.endpointFlag} ${fullCmd}`,
     stdout: result.stdout,
     stderr: result.stderr,
     exitCode: result.exitCode,
