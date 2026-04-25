@@ -1,14 +1,19 @@
 {
   "name": "kvctltool",
-  "version": "2.0.0",
-  "description": "craftctl 命令行工具的现代化图形化客户端",
+  "version": "1.0.0",
+  "description": "kvctlTool 命令行工具的现代化图形化客户端",
   "main": "dist-electron/main.js",
   "scripts": {
     "dev": "vite",
-    "build": "vue-tsc && vite build && electron-builder",
-    "build:win": "vue-tsc && vite build && electron-builder --win",
+    "build": "tsc && vite build",
     "preview": "vite preview",
-    "typecheck": "vue-tsc --noEmit"
+    "build:linux": "npm run build && electron-builder --linux",
+    "build:linux:deb": "npm run build && electron-builder --linux deb",
+    "build:linux:rpm": "npm run build && electron-builder --linux rpm",
+    "build:win": "npm run build && electron-builder --win zip",
+    "build:win:all": "npm run build && electron-builder --win nsis zip",
+    "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
+    "postinstall": "electron-builder install-app-deps"
   },
   "dependencies": {
     "electron-store": "^8.1.0",
@@ -39,21 +44,83 @@
     "directories": {
       "output": "release"
     },
+    "files": [
+      "dist/**/*",
+      "dist-electron/**/*",
+      "node_modules/ssh2/**/*",
+      "node_modules/cpu-features/**/*",
+      "node_modules/nan/**/*",
+      "node_modules/buildcheck/**/*",
+      "node_modules/asn1/**/*",
+      "node_modules/bcrypt-pbkdf/**/*",
+      "node_modules/safer-buffer/**/*",
+      "node_modules/tweetnacl/**/*",
+      "node_modules/streamsearch/**/*",
+      "node_modules/@monaco-editor/react/**/*",
+      "node_modules/monaco-editor/**/*",
+      "node_modules/state-local/**/*",
+      "node_modules/use-sync-external-store/**/*"
+    ],
+    "asar": false,
+    "npmRebuild": false,
+    "buildDependenciesFromSource": false,
+    "nodeGypRebuild": false,
+    "includePdb": false,
+    "mac": {
+      "target": "dmg"
+    },
     "win": {
       "target": [
         {
           "target": "nsis",
+          "arch": ["x64"]
+        },
+        {
+          "target": "zip",
+          "arch": ["x64"]
+        }
+      ],
+      "artifactName": "${productName}-${version}-${arch}.${ext}",
+      "icon": "public/icon.ico"
+    },
+    "linux": {
+      "target": [
+        {
+          "target": "AppImage",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "deb",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "rpm",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "tar.gz",
           "arch": [
             "x64"
           ]
         }
       ],
-      "icon": "public/icon.ico"
-    },
-    "nsis": {
-      "oneClick": false,
-      "perMachine": false,
-      "allowToChangeInstallationDirectory": true
+      "icon": "public/icon.png",
+      "category": "Development",
+      "maintainer": "jzh879869954@163.com",
+      "vendor": "jzh",
+      "synopsis": "kvctlTool",
+      "description": "kvctlTool 命令行工具的现代化图形化客户端",
+      "desktop": {
+        "Name": "kvctlTool",
+        "Comment": "kvctlTool",
+        "Categories": "Development;Database;"
+      }
     }
   }
 }
