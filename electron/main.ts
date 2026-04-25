@@ -20,7 +20,8 @@ function createWindow() {
       nodeIntegration: false
     },
     show: false,
-    backgroundColor: '#0d1117'
+    backgroundColor: '#0d1117',
+    autoHideMenuBar: true
   })
 
   mainWindow.once('ready-to-show', () => {
