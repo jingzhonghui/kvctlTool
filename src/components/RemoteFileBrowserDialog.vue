@@ -42,7 +42,11 @@ async function loadDirectory(dir: string) {
     const result = await window.api.dialog.openFileRemote(dir) as RemoteDirResult | null
     if (result && result.dir) {
       currentDir.value = result.dir
-      entries.value = result.files || []
+      const files = result.files || []
+      entries.value = files.sort((a, b) => {
+        if (a.isDir === b.isDir) return a.name.localeCompare(b.name)
+        return a.isDir ? -1 : 1
+      })
       selectedPath.value = ''
     } else {
       error.value = '无法读取远程目录'

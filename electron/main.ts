@@ -83,13 +83,17 @@ ipcMain.handle('dialog:openFileRemote', async (_, dir: string = '') => {
             resolve(null)
             return
           }
-          resolve({
-            dir: targetDir,
-            files: list.filter(f => f.filename !== '.' && f.filename !== '..').map(f => ({
+          const files = list
+            .filter(f => f.filename !== '.' && f.filename !== '..')
+            .map(f => ({
               name: f.filename,
               isDir: f.attrs.isDirectory()
             }))
-          })
+            .sort((a, b) => {
+              if (a.isDir === b.isDir) return a.name.localeCompare(b.name)
+              return a.isDir ? -1 : 1
+            })
+          resolve({ dir: targetDir, files })
         })
       }
 
