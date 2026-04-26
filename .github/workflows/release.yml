@@ -68,8 +68,8 @@ jobs:
           tag_name: ${{ github.ref_name }}
           files: |
             # release/win-unpacked/*.exe
-            release/kvctlTools-*.zip
-            release/kvctlTools-*.exe
+            release/kvctlTool-*.zip
+            release/kvctlTool-*.exe
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
