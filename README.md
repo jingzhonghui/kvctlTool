@@ -2,7 +2,7 @@
 
 **kvctlTool** 是一款专为 `etcdctl` / `craftctl` 等 KV 命令行工具打造的现代化图形化客户端，支持**本地直连**与 **SSH 远程执行**双模式，让分布式 KV 服务的日常运维与调试更加直观高效。
 
-![软件界面截图](docs/demo.png)
+![软件界面截图](docs/main.png)
 
 ---
 
