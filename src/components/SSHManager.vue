@@ -79,7 +79,8 @@ async function testConnection() {
   testing.value = true
   testingError.value = ''
   try {
-    const result = await window.api.ssh.testConnect(editingConfig.value)
+    const plainConfig = JSON.parse(JSON.stringify(editingConfig.value))
+    const result = await window.api.ssh.testConnect(plainConfig)
     if (result.success) {
       outputStore.addToast('连接成功', 'success')
     } else {

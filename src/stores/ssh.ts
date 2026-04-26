@@ -18,7 +18,8 @@ export const useSSHStore = defineStore('ssh', () => {
   }
 
   async function saveConfig(config: any) {
-    await window.api.db.saveSSHConfig(config)
+    const plainConfig = JSON.parse(JSON.stringify(config))
+    await window.api.db.saveSSHConfig(plainConfig)
     await loadConfigs()
   }
 
