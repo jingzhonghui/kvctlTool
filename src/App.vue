@@ -132,45 +132,6 @@ function openSettings() {
   showSettings.value = true
 }
 
-// ============ 表格列宽调整 ============
-const tableRef = ref<HTMLTableElement | null>(null)
-const isColResizing = ref(false)
-const resizingColIndex = ref(-1)
-const startX = ref(0)
-const startWidth = ref(0)
-const columnWidths = ref([30, 40, 200, 300])
-
-function startColResize(index: number, e: MouseEvent) {
-  isColResizing.value = true
-  resizingColIndex.value = index
-  startX.value = e.clientX
-  
-  const th = (e.target as HTMLElement).parentElement as HTMLTableHeaderCellElement
-  startWidth.value = th.offsetWidth
-  
-  document.body.style.cursor = 'col-resize'
-  document.body.style.userSelect = 'none'
-  document.addEventListener('mousemove', onColResize)
-  document.addEventListener('mouseup', stopColResize)
-}
-
-function onColResize(e: MouseEvent) {
-  if (!isColResizing.value) return
-  const diff = e.clientX - startX.value
-  const newWidth = Math.max(60, startWidth.value + diff)
-  columnWidths.value[resizingColIndex.value] = newWidth
-}
-
-function stopColResize() {
-  if (!isColResizing.value) return
-  isColResizing.value = false
-  resizingColIndex.value = -1
-  document.body.style.cursor = ''
-  document.body.style.userSelect = ''
-  document.removeEventListener('mousemove', onColResize)
-  document.removeEventListener('mouseup', stopColResize)
-}
-
 // ============ 表格数据处理 ============
 interface TableRow {
   index: number
@@ -219,6 +180,47 @@ watch(() => outputStore.outputs, (newOutputs) => {
     tableData.value = parseGetOutput(newOutputs)
   }
 }, { deep: true })
+
+// ============ Tooltip 功能 ============
+const tooltip = ref({
+  show: false,
+  text: '',
+  x: 0,
+  y: 0
+})
+const tooltipTimer = ref<number | null>(null)
+
+function showTooltip(e: MouseEvent, text: string) {
+  // 清除之前的定时器
+  if (tooltipTimer.value) {
+    clearTimeout(tooltipTimer.value)
+    tooltipTimer.value = null
+  }
+
+  const target = e.target as HTMLElement
+  // 检查文字是否超出（使用 offsetWidth 比较更准确）
+  const isOverflowing = target.scrollWidth > target.offsetWidth + 1
+
+  if (isOverflowing) {
+    // 延迟 0.5 秒显示
+    tooltipTimer.value = window.setTimeout(() => {
+      tooltip.value = {
+        show: true,
+        text,
+        x: e.clientX,
+        y: e.clientY - 10
+      }
+    }, 500)
+  }
+}
+
+function hideTooltip() {
+  if (tooltipTimer.value) {
+    clearTimeout(tooltipTimer.value)
+    tooltipTimer.value = null
+  }
+  tooltip.value.show = false
+}
 </script>
 
 <template>
@@ -257,25 +259,13 @@ watch(() => outputStore.outputs, (newOutputs) => {
               </div>
             </div>
             <div class="panel-content">
-              <table ref="tableRef" :class="['data-table', { 'is-resizing': isColResizing }]">
+              <table class="data-table">
                 <thead>
                   <tr>
-                    <th :style="{ width: columnWidths[0] + 'px' }">
-                      序号
-                      <span :class="['col-resize-handle', { active: isColResizing && resizingColIndex === 0 }]" @mousedown="startColResize(0, $event)"></span>
-                    </th>
-                    <th :style="{ width: columnWidths[1] + 'px' }">
-                      版本
-                      <span :class="['col-resize-handle', { active: isColResizing && resizingColIndex === 3 }]" @mousedown="startColResize(3, $event)"></span>
-                    </th>
-                    <th :style="{ width: columnWidths[2] + 'px' }">
-                      Key
-                      <span :class="['col-resize-handle', { active: isColResizing && resizingColIndex === 1 }]" @mousedown="startColResize(1, $event)"></span>
-                    </th>
-                    <th :style="{ width: columnWidths[3] + 'px' }">
-                      Value
-                      <span :class="['col-resize-handle', { active: isColResizing && resizingColIndex === 2 }]" @mousedown="startColResize(2, $event)"></span>
-                    </th>
+                    <th class="col-index">序号</th>
+                    <th class="col-version">版本</th>
+                    <th class="col-key">Key</th>
+                    <th class="col-value">Value</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -285,8 +275,20 @@ watch(() => outputStore.outputs, (newOutputs) => {
                   <tr v-for="row in tableData" :key="row.index">
                     <td>{{ row.index }}</td>
                     <td>{{ row.version }}</td>
-                    <td>{{ row.key }}</td>
-                    <td>{{ row.value }}</td>
+                    <td>
+                      <span
+                        class="cell-ellipsis"
+                        @mouseenter="showTooltip($event, row.key)"
+                        @mouseleave="hideTooltip"
+                      >{{ row.key }}</span>
+                    </td>
+                    <td>
+                      <span
+                        class="cell-ellipsis"
+                        @mouseenter="showTooltip($event, row.value)"
+                        @mouseleave="hideTooltip"
+                      >{{ row.value }}</span>
+                    </td>
                   </tr>
                 </tbody>
               </table>
@@ -301,13 +303,18 @@ watch(() => outputStore.outputs, (newOutputs) => {
     <SettingsDialog v-model:visible="showSettings" :execute-mode="executeMode" />
     
     <div class="toast-container">
-      <div 
-        v-for="toast in outputStore.toasts" 
+      <div
+        v-for="toast in outputStore.toasts"
         :key="toast.id"
         :class="['toast', `toast-${toast.type}`]"
       >
         {{ toast.message }}
       </div>
+    </div>
+
+    <!-- Tooltip -->
+    <div v-if="tooltip.show" class="tooltip" :style="{ left: tooltip.x + 'px', top: tooltip.y + 'px' }">
+      {{ tooltip.text }}
     </div>
   </div>
 </template>
@@ -405,7 +412,6 @@ watch(() => outputStore.outputs, (newOutputs) => {
   color: var(--text-primary);
   border-right: 2px solid var(--border-color);
   border-bottom: 2px solid var(--border-color);
-  position: relative;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -429,29 +435,24 @@ watch(() => outputStore.outputs, (newOutputs) => {
   border-right: none;
 }
 
-.col-resize-handle {
-  position: absolute;
-  right: 0;
-  top: 0;
-  bottom: 0;
-  width: 6px;
-  cursor: col-resize;
-  background: transparent;
-  transition: background 0.2s;
-  z-index: 10;
+/* 固定列宽 */
+.data-table .col-index {
+  width: 40px;
+  min-width: 40px;
+  max-width: 40px;
 }
 
-.col-resize-handle:hover {
-  background: var(--accent);
+.data-table .col-key {
+  width: 30%;
 }
 
-.col-resize-handle.active {
-  background: var(--accent);
+.data-table .col-value {
+  width: 60%;
 }
 
-/* 拖动时，禁用非活动分隔线的 hover 效果 */
-.data-table.is-resizing .col-resize-handle:not(.active) {
-  background: transparent !important;
+.data-table .col-version {
+  width: 50px;
+  min-width: 50px;
 }
 
 .data-table tbody tr:hover {
@@ -466,5 +467,30 @@ watch(() => outputStore.outputs, (newOutputs) => {
   text-align: center;
   color: var(--text-secondary);
   padding: 40px;
+}
+
+/* Tooltip 样式 */
+.tooltip {
+  position: fixed;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  padding: 8px 12px;
+  font-size: 12px;
+  color: var(--text-primary);
+  max-width: 500px;
+  word-break: break-all;
+  z-index: 1000;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  pointer-events: none;
+}
+
+.cell-ellipsis {
+  display: block;
+  cursor: default;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  width: 100%;
 }
 </style>
