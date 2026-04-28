@@ -17,7 +17,7 @@ export default defineConfig({
           build: {
             outDir: 'dist-electron',
             rollupOptions: {
-              external: ['electron', 'better-sqlite3', 'ssh2', 'keytar', 'electron-store']
+              external: ['electron', 'better-sqlite3', 'ssh2', 'keytar', 'electron-store', 'lodash-es', 'lodash-unified']
             }
           }
         }
@@ -41,7 +41,9 @@ export default defineConfig({
   ],
   resolve: {
     alias: {
-      '@': resolve(__dirname, 'src')
+      '@': resolve(__dirname, 'src'),
+      'lodash-es': 'lodash',
+      'lodash-unified': 'lodash'
     }
   },
   build: {
