@@ -122,6 +122,7 @@ watch(() => sshStore.selectedConfigId, (newId, oldId) => {
 
 function clearOutput() {
   outputStore.clear()
+  tableData.value = []
 }
 
 function toggleTheme() {
