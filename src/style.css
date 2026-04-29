@@ -88,6 +88,7 @@ body {
   display: flex;
   align-items: center;
   gap: 8px;
+  position: relative;
 }
 
 .app-title .version {
@@ -120,6 +121,12 @@ body {
 .icon-btn:hover {
   border-color: var(--accent);
   color: var(--text-primary);
+}
+
+.icon-btn.active {
+  color: var(--accent);
+  border-color: var(--accent);
+  background: rgba(88, 166, 255, 0.1);
 }
 
 .app-body {
@@ -561,14 +568,17 @@ body {
   font-family: var(--font-sans);
 }
 
-.toast-container {
-  position: fixed;
-  top: 64px;
-  right: 20px;
+.header-toast-container {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
   z-index: 1000;
   display: flex;
   flex-direction: column;
   gap: 8px;
+  align-items: center;
+  white-space: nowrap;
 }
 
 .toast {
@@ -589,11 +599,9 @@ body {
 @keyframes toastIn {
   from {
     opacity: 0;
-    transform: translateX(20px);
   }
   to {
     opacity: 1;
-    transform: translateX(0);
   }
 }
 

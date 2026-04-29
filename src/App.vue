@@ -20,6 +20,7 @@ const sshStore = useSSHStore()
 
 const executeMode = ref<'local' | 'ssh'>('local')
 const showSettings = ref(false)
+const showResultPanel = ref(true)
 const sidebarWidth = ref(320)
 const isResizing = ref(false)
 
@@ -133,6 +134,10 @@ function openSettings() {
   showSettings.value = true
 }
 
+function toggleResultPanel() {
+  showResultPanel.value = !showResultPanel.value
+}
+
 // ============ 表格数据处理 ============
 interface TableRow {
   index: number
@@ -226,12 +231,14 @@ function hideTooltip() {
 
 <template>
   <div class="app-container">
-    <AppHeader 
-      :execute-mode="executeMode" 
+    <AppHeader
+      :execute-mode="executeMode"
+      :show-result-panel="showResultPanel"
       @toggle-mode="toggleMode"
       @clear-output="clearOutput"
       @toggle-theme="toggleTheme"
       @open-settings="openSettings"
+      @toggle-result-panel="toggleResultPanel"
     />
     
     <div class="app-body">
@@ -246,7 +253,7 @@ function hideTooltip() {
 
       <main class="main-content">
         <div class="output-container">
-          <div class="result-panel">
+          <div class="result-panel" v-show="showResultPanel">
             <div class="panel-toolbar">
               <div class="panel-title">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -302,16 +309,6 @@ function hideTooltip() {
     </div>
     
     <SettingsDialog v-model:visible="showSettings" :execute-mode="executeMode" />
-    
-    <div class="toast-container">
-      <div
-        v-for="toast in outputStore.toasts"
-        :key="toast.id"
-        :class="['toast', `toast-${toast.type}`]"
-      >
-        {{ toast.message }}
-      </div>
-    </div>
 
     <!-- Tooltip -->
     <div v-if="tooltip.show" class="tooltip" :style="{ left: tooltip.x + 'px', top: tooltip.y + 'px' }">
