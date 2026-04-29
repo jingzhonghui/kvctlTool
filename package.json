@@ -2,6 +2,7 @@
   "name": "kvctltool",
   "version": "1.0.0",
   "description": "kvctlTool 命令行工具的现代化图形化客户端",
+  "homepage": ".",
   "main": "dist-electron/main.js",
   "scripts": {
     "dev": "vite",

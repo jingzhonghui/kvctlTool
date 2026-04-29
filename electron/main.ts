@@ -135,15 +135,18 @@ ipcMain.handle('craftctl:execute', async (_, params: {
 
   return new Promise((resolve) => {
     const endpoint = params.endpoint
-    const endpointArgs = endpoint.startsWith('http://') ? [`--endpoints=${endpoint}`] : ['-e', endpoint.replace('tcp://', '').replace('udp://', '')]
-    const proc = spawn(toolPath, [...args, ...endpointArgs, ...params.command.split(' ')])
-    
+    const endpointArgs = endpoint.startsWith('http://') ? [`--endpoints=${endpoint}`] : ['-e', endpoint]
+    const proc = spawn(toolPath, [...args, ...endpointArgs, ...params.command.split(' ')], {
+      env: process.env,
+      shell: true
+    })
+
     let stdout = ''
     let stderr = ''
-    
+
     proc.stdout.on('data', (data) => { stdout += data.toString() })
     proc.stderr.on('data', (data) => { stderr += data.toString() })
-    
+
     proc.on('close', (code) => {
       const duration = Date.now() - startTime
       resolve({
@@ -153,7 +156,7 @@ ipcMain.handle('craftctl:execute', async (_, params: {
         duration
       })
     })
-    
+
     proc.on('error', (err) => {
       resolve({
         stdout: '',
