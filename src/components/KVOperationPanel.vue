@@ -13,9 +13,11 @@ const sshStore = useSSHStore()
 
 const key = ref('')
 const value = ref('')
-const loading = ref(false)
 
 async function executeCommand(cmd: string, args: string[] = []) {
+  if (outputStore.isExecuting) {
+    return
+  }
   if (!key.value && (cmd === 'get' || cmd === 'del')) {
     outputStore.addToast('请输入 Key', 'warning')
     return
@@ -29,45 +31,48 @@ async function executeCommand(cmd: string, args: string[] = []) {
     return
   }
 
-  loading.value = true
+  outputStore.startExecute()
   outputStore.addToast('正在执行...', 'success')
 
-  let result: any
-  const opts: string[] = []
-  if (settingsStore.prefixQuery) opts.push('--prefix')
-  if (settingsStore.keysOnly) opts.push('--keys')
-  const fullCmd = [cmd, ...args, ...opts].join(' ').trim()
+  try {
+    let result: any
+    const opts: string[] = []
+    if (settingsStore.prefixQuery) opts.push('--prefix')
+    if (settingsStore.keysOnly) opts.push('--keys')
+    const fullCmd = [cmd, ...args, ...opts].join(' ').trim()
 
-  if (connectionStore.mode === 'ssh' && sshStore.isConnected) {
-    result = await window.api.ssh.execute(`${connectionStore.toolPath} ${connectionStore.endpointFlag} ${fullCmd}`)
-  } else {
-    result = await window.api.craftctl.execute({
-      command: fullCmd,
-      mode: connectionStore.mode,
-      endpoint: connectionStore.endpoint,
-      options: {
-        prefix: false,
-        keys: false
-      }
+    if (connectionStore.mode === 'ssh' && sshStore.isConnected) {
+      result = await window.api.ssh.execute(`${connectionStore.toolPath} ${connectionStore.endpointFlag} ${fullCmd}`)
+    } else {
+      result = await window.api.craftctl.execute({
+        command: fullCmd,
+        mode: connectionStore.mode,
+        endpoint: connectionStore.endpoint,
+        options: {
+          prefix: false,
+          keys: false
+        }
+      })
+    }
+
+    if (!settingsStore.preserveOutput) {
+      outputStore.clear()
+    }
+
+    outputStore.addOutput({
+      id: uuidv4(),
+      command: `${connectionStore.toolPath} ${connectionStore.endpointFlag} ${fullCmd}`,
+      stdout: result.stdout,
+      stderr: result.stderr,
+      exitCode: result.exitCode,
+      duration: result.duration,
+      timestamp: Date.now()
     })
+
+    await connectionStore.saveAddress()
+  } finally {
+    outputStore.endExecute()
   }
-
-  if (!settingsStore.preserveOutput) {
-    outputStore.clear()
-  }
-
-  outputStore.addOutput({
-    id: uuidv4(),
-    command: `${connectionStore.toolPath} ${connectionStore.endpointFlag} ${fullCmd}`,
-    stdout: result.stdout,
-    stderr: result.stderr,
-    exitCode: result.exitCode,
-    duration: result.duration,
-    timestamp: Date.now()
-  })
-
-  await connectionStore.saveAddress()
-  loading.value = false
 }
 
 function handleGet() {
@@ -99,10 +104,10 @@ function handleMemberList() {
       <input class="form-input" v-model="value" placeholder="输入键值" />
     </div>
     <div class="btn-grid">
-      <button class="btn btn-primary" @click="handleGet" :disabled="loading">get</button>
-      <button class="btn btn-primary" @click="handlePut" :disabled="loading">put</button>
-      <button class="btn btn-primary" @click="handleMemberList" :disabled="loading">member list</button>
-      <button class="btn btn-danger" @click="handleDel" :disabled="loading">del</button>
+      <button class="btn btn-primary" @click="handleGet" :disabled="outputStore.isExecuting">get</button>
+      <button class="btn btn-primary" @click="handlePut" :disabled="outputStore.isExecuting">put</button>
+      <button class="btn btn-primary" @click="handleMemberList" :disabled="outputStore.isExecuting">member list</button>
+      <button class="btn btn-danger" @click="handleDel" :disabled="outputStore.isExecuting">del</button>
     </div>
   </div>
 </template>

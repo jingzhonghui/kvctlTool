@@ -21,6 +21,7 @@ interface Toast {
 export const useOutputStore = defineStore('output', () => {
   const outputs = ref<OutputItem[]>([])
   const toasts = ref<Toast[]>([])
+  const isExecuting = ref(false)
 
   function addOutput(item: OutputItem) {
     outputs.value.push(item)
@@ -43,11 +44,22 @@ export const useOutputStore = defineStore('output', () => {
     }, duration)
   }
 
+  function startExecute() {
+    isExecuting.value = true
+  }
+
+  function endExecute() {
+    isExecuting.value = false
+  }
+
   return {
     outputs,
     toasts,
+    isExecuting,
     addOutput,
     clear,
-    addToast
+    addToast,
+    startExecute,
+    endExecute
   }
 })

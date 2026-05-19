@@ -12,9 +12,11 @@ const settingsStore = useSettingsStore()
 const sshStore = useSSHStore()
 
 const customCommand = ref('')
-const loading = ref(false)
 
 async function executeCustomCommand() {
+  if (outputStore.isExecuting) {
+    return
+  }
   if (!customCommand.value.trim()) {
     outputStore.addToast('请输入要执行的命令', 'warning')
     return
@@ -24,42 +26,45 @@ async function executeCustomCommand() {
     return
   }
 
-  loading.value = true
+  outputStore.startExecute()
   outputStore.addToast('正在执行...', 'success')
 
-  let result: any
+  try {
+    let result: any
 
-  if (connectionStore.mode === 'ssh' && sshStore.isConnected) {
-    result = await window.api.ssh.execute(`${connectionStore.toolPath} ${connectionStore.endpointFlag} ${customCommand.value}`)
-  } else {
-    result = await window.api.craftctl.execute({
-      command: customCommand.value,
-      mode: connectionStore.mode,
-      endpoint: connectionStore.endpoint,
-      options: {
-        prefix: settingsStore.prefixQuery,
-        keys: settingsStore.keysOnly
-      }
+    if (connectionStore.mode === 'ssh' && sshStore.isConnected) {
+      result = await window.api.ssh.execute(`${connectionStore.toolPath} ${connectionStore.endpointFlag} ${customCommand.value}`)
+    } else {
+      result = await window.api.craftctl.execute({
+        command: customCommand.value,
+        mode: connectionStore.mode,
+        endpoint: connectionStore.endpoint,
+        options: {
+          prefix: settingsStore.prefixQuery,
+          keys: settingsStore.keysOnly
+        }
+      })
+    }
+
+    if (!settingsStore.preserveOutput) {
+      outputStore.clear()
+    }
+
+    outputStore.addOutput({
+      id: uuidv4(),
+      command: `${connectionStore.toolPath} ${connectionStore.endpointFlag} ${customCommand.value}`,
+      stdout: result.stdout,
+      stderr: result.stderr,
+      exitCode: result.exitCode,
+      duration: result.duration,
+      timestamp: Date.now()
     })
+
+    await connectionStore.saveAddress()
+    customCommand.value = ''
+  } finally {
+    outputStore.endExecute()
   }
-
-  if (!settingsStore.preserveOutput) {
-    outputStore.clear()
-  }
-
-  outputStore.addOutput({
-    id: uuidv4(),
-    command: `${connectionStore.toolPath} ${connectionStore.endpointFlag} ${customCommand.value}`,
-    stdout: result.stdout,
-    stderr: result.stderr,
-    exitCode: result.exitCode,
-    duration: result.duration,
-    timestamp: Date.now()
-  })
-
-  await connectionStore.saveAddress()
-  customCommand.value = ''
-  loading.value = false
 }
 
 function handleKeydown(e: KeyboardEvent) {
@@ -80,17 +85,17 @@ onUnmounted(() => {
 <template>
   <div class="command-bar">
     <div class="cmd-input-wrapper">
-      <input 
-        class="cmd-input" 
-        v-model="customCommand" 
+      <input
+        class="cmd-input"
+        v-model="customCommand"
         placeholder="输入自定义命令，如: -h"
-        :disabled="loading"
+        :disabled="outputStore.isExecuting"
         @keydown="handleKeydown"
       />
       <span class="cmd-hint">Ctrl + Enter</span>
     </div>
-    <button class="btn btn-primary" style="padding: 9px 20px;" @click="executeCustomCommand" :disabled="loading">
-      {{ loading ? '执行中...' : '执行' }}
+    <button class="btn btn-primary" style="padding: 9px 20px;" @click="executeCustomCommand" :disabled="outputStore.isExecuting">
+      {{ outputStore.isExecuting ? '执行中...' : '执行' }}
     </button>
   </div>
 </template>
