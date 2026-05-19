@@ -16,7 +16,7 @@ const settingsStore = useSettingsStore()
       ></div>
     </div>
     <div class="switch-item">
-      <span class="switch-label">仅查询 Key (--keys)</span>
+      <span class="switch-label">仅查询 Key (--keys-only)</span>
       <div 
         class="switch" 
         :class="{ on: settingsStore.keysOnly }"

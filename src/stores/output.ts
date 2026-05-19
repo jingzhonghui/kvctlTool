@@ -10,6 +10,7 @@ interface OutputItem {
   exitCode: number
   duration: number
   timestamp: number
+  pending?: boolean
 }
 
 interface Toast {
@@ -25,6 +26,32 @@ export const useOutputStore = defineStore('output', () => {
 
   function addOutput(item: OutputItem) {
     outputs.value.push(item)
+  }
+
+  function addPendingOutput(command: string): string {
+    const id = uuidv4()
+    outputs.value.push({
+      id,
+      command,
+      stdout: '',
+      stderr: '',
+      exitCode: 0,
+      duration: 0,
+      timestamp: Date.now(),
+      pending: true
+    })
+    return id
+  }
+
+  function updateOutputResult(id: string, result: { stdout: string; stderr: string; exitCode: number; duration: number }) {
+    const output = outputs.value.find(o => o.id === id)
+    if (output) {
+      output.stdout = result.stdout
+      output.stderr = result.stderr
+      output.exitCode = result.exitCode
+      output.duration = result.duration
+      output.pending = false
+    }
   }
 
   function clear() {
@@ -57,6 +84,8 @@ export const useOutputStore = defineStore('output', () => {
     toasts,
     isExecuting,
     addOutput,
+    addPendingOutput,
+    updateOutputResult,
     clear,
     addToast,
     startExecute,

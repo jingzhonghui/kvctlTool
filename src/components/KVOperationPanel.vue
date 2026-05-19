@@ -4,7 +4,6 @@ import { useConnectionStore } from '../stores/connection'
 import { useOutputStore } from '../stores/output'
 import { useSettingsStore } from '../stores/settings'
 import { useSSHStore } from '../stores/ssh'
-import { v4 as uuidv4 } from 'uuid'
 
 const connectionStore = useConnectionStore()
 const outputStore = useOutputStore()
@@ -31,18 +30,24 @@ async function executeCommand(cmd: string, args: string[] = []) {
     return
   }
 
+  const opts: string[] = []
+  if (settingsStore.prefixQuery) opts.push('--prefix')
+  if (settingsStore.keysOnly) opts.push('--keys-only')
+  const fullCmd = [cmd, ...args, ...opts].join(' ').trim()
+  const displayCmd = `${connectionStore.toolPath} ${connectionStore.endpointFlag} ${fullCmd}`
+
+  if (!settingsStore.preserveOutput) {
+    outputStore.clear()
+  }
+
   outputStore.startExecute()
-  outputStore.addToast('正在执行...', 'success')
+  const outputId = outputStore.addPendingOutput(displayCmd)
 
   try {
     let result: any
-    const opts: string[] = []
-    if (settingsStore.prefixQuery) opts.push('--prefix')
-    if (settingsStore.keysOnly) opts.push('--keys')
-    const fullCmd = [cmd, ...args, ...opts].join(' ').trim()
 
     if (connectionStore.mode === 'ssh' && sshStore.isConnected) {
-      result = await window.api.ssh.execute(`${connectionStore.toolPath} ${connectionStore.endpointFlag} ${fullCmd}`)
+      result = await window.api.ssh.execute(displayCmd)
     } else {
       result = await window.api.craftctl.execute({
         command: fullCmd,
@@ -55,18 +60,11 @@ async function executeCommand(cmd: string, args: string[] = []) {
       })
     }
 
-    if (!settingsStore.preserveOutput) {
-      outputStore.clear()
-    }
-
-    outputStore.addOutput({
-      id: uuidv4(),
-      command: `${connectionStore.toolPath} ${connectionStore.endpointFlag} ${fullCmd}`,
+    outputStore.updateOutputResult(outputId, {
       stdout: result.stdout,
       stderr: result.stderr,
       exitCode: result.exitCode,
-      duration: result.duration,
-      timestamp: Date.now()
+      duration: result.duration
     })
 
     await connectionStore.saveAddress()

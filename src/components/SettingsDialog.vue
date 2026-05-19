@@ -79,7 +79,7 @@ function setTheme(dark: boolean) {
 </script>
 
 <template>
-  <div class="settings-overlay" v-if="props.visible" @click.self="cancel">
+  <div class="settings-overlay" v-if="props.visible">
     <div class="settings-modal">
       <div class="settings-header">
         <span class="settings-title">设置</span>

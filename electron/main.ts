@@ -131,7 +131,7 @@ ipcMain.handle('craftctl:execute', async (_, params: {
   const toolPath = store.get('toolPath', 'craftctl') as string
   const startTime = Date.now()
   const args = params.options?.prefix ? ['--prefix'] : []
-  if (params.options?.keys) args.push('--keys')
+  if (params.options?.keys) args.push('--keys-only')
 
   return new Promise((resolve) => {
     const endpoint = params.endpoint

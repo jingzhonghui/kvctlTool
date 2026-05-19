@@ -47,10 +47,15 @@ onMounted(async () => {
       connectionStore.toolPath = 'craftctl'
     }
   }
+
+  // 初始化表格列宽
+  window.addEventListener('resize', handleResize)
+  setTimeout(initColumnWidths, 100)
 })
 
 onUnmounted(() => {
   stopResize()
+  window.removeEventListener('resize', handleResize)
 })
 
 function startResize() {
@@ -187,6 +192,74 @@ watch(() => outputStore.outputs, (newOutputs) => {
   }
 }, { deep: true })
 
+// ============ 表格列宽调整 ============
+interface ColumnConfig {
+  key: string
+  width: number
+  minWidth: number
+}
+
+const tableContainerRef = ref<HTMLElement | null>(null)
+const columnConfigs = ref<ColumnConfig[]>([
+  { key: 'index', width: 0, minWidth: 50 },
+  { key: 'version', width: 0, minWidth: 60 },
+  { key: 'key', width: 0, minWidth: 100 },
+  { key: 'value', width: 0, minWidth: 100 }
+])
+const resizingColumn = ref<number | null>(null)
+const resizeStartX = ref(0)
+const resizeStartWidth = ref(0)
+
+// 初始化均分列宽
+function initColumnWidths() {
+  if (!tableContainerRef.value) return
+  const containerWidth = tableContainerRef.value.clientWidth
+  const count = columnConfigs.value.length
+  const avgWidth = Math.floor(containerWidth / count)
+
+  columnConfigs.value = columnConfigs.value.map(col => ({
+    ...col,
+    width: Math.max(col.minWidth, avgWidth)
+  }))
+}
+
+// 开始调整列宽
+function startColumnResize(index: number, e: MouseEvent) {
+  e.preventDefault()
+  resizingColumn.value = index
+  resizeStartX.value = e.clientX
+  resizeStartWidth.value = columnConfigs.value[index].width
+
+  document.body.style.cursor = 'col-resize'
+  document.body.style.userSelect = 'none'
+  document.addEventListener('mousemove', onColumnResize)
+  document.addEventListener('mouseup', stopColumnResize)
+}
+
+function onColumnResize(e: MouseEvent) {
+  if (resizingColumn.value === null) return
+
+  const delta = e.clientX - resizeStartX.value
+  const newWidth = Math.max(
+    columnConfigs.value[resizingColumn.value].minWidth,
+    resizeStartWidth.value + delta
+  )
+  columnConfigs.value[resizingColumn.value].width = newWidth
+}
+
+function stopColumnResize() {
+  resizingColumn.value = null
+  document.body.style.cursor = ''
+  document.body.style.userSelect = ''
+  document.removeEventListener('mousemove', onColumnResize)
+  document.removeEventListener('mouseup', stopColumnResize)
+}
+
+// 监听容器大小变化，重新均分列宽
+function handleResize() {
+  initColumnWidths()
+}
+
 // ============ Tooltip 功能 ============
 const tooltip = ref({
   show: false,
@@ -266,31 +339,41 @@ function hideTooltip() {
                 结果
               </div>
             </div>
-            <div class="panel-content">
+            <div class="panel-content" ref="tableContainerRef">
               <table class="data-table">
                 <thead>
                   <tr>
-                    <th class="col-index">序号</th>
-                    <th class="col-version">版本</th>
-                    <th class="col-key">Key</th>
-                    <th class="col-value">Value</th>
+                    <th
+                      v-for="(col, index) in columnConfigs"
+                      :key="col.key"
+                      :style="{ width: col.width + 'px' }"
+                      :class="'col-' + col.key"
+                    >
+                      <span class="th-content">
+                        {{ col.key === 'index' ? '序号' : col.key === 'version' ? '版本' : col.key === 'key' ? 'Key' : 'Value' }}
+                      </span>
+                      <span
+                        class="resize-handle"
+                        @mousedown="startColumnResize(index, $event)"
+                      ></span>
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
                   <tr v-if="tableData.length === 0">
-                    <td colspan="4" class="empty-cell">暂无数据</td>
+                    <td :colspan="columnConfigs.length" class="empty-cell">暂无数据</td>
                   </tr>
                   <tr v-for="row in tableData" :key="row.index">
-                    <td>{{ row.index }}</td>
-                    <td>{{ row.version }}</td>
-                    <td>
+                    <td :style="{ width: columnConfigs[0].width + 'px' }">{{ row.index }}</td>
+                    <td :style="{ width: columnConfigs[1].width + 'px' }">{{ row.version }}</td>
+                    <td :style="{ width: columnConfigs[2].width + 'px' }">
                       <span
                         class="cell-ellipsis"
                         @mouseenter="showTooltip($event, row.key)"
                         @mouseleave="hideTooltip"
                       >{{ row.key }}</span>
                     </td>
-                    <td>
+                    <td :style="{ width: columnConfigs[3].width + 'px' }">
                       <span
                         class="cell-ellipsis"
                         @mouseenter="showTooltip($event, row.value)"
@@ -413,10 +496,35 @@ function hideTooltip() {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  position: relative;
+  user-select: none;
 }
 
 .data-table th:last-child {
   border-right: none;
+}
+
+.th-content {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding-right: 8px;
+}
+
+.resize-handle {
+  position: absolute;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  width: 6px;
+  cursor: col-resize;
+  background: transparent;
+  transition: background 0.2s;
+}
+
+.resize-handle:hover {
+  background: var(--accent);
 }
 
 .data-table td {
@@ -433,25 +541,7 @@ function hideTooltip() {
   border-right: none;
 }
 
-/* 固定列宽 */
-.data-table .col-index {
-  width: 40px;
-  min-width: 40px;
-  max-width: 40px;
-}
-
-.data-table .col-key {
-  width: 30%;
-}
-
-.data-table .col-value {
-  width: 60%;
-}
-
-.data-table .col-version {
-  width: 50px;
-  min-width: 50px;
-}
+/* 列宽通过 JS 动态控制 */
 
 .data-table tbody tr:hover {
   background: var(--bg-secondary);

@@ -109,12 +109,16 @@ watch(() => outputStore.outputs.length, async () => {
       <div v-for="output in filteredOutputs" :key="output.id" class="output-block">
         <div class="output-meta">
           <span class="output-time">{{ formatTime(output.timestamp) }}</span>
-          <span class="output-duration">{{ formatDuration(output.duration) }}</span>
+          <span v-if="!output.pending" class="output-duration">{{ formatDuration(output.duration) }}</span>
+          <span v-else class="output-pending">执行中...</span>
         </div>
         <div class="output-cmd" v-html="highlightText('&gt; ' + output.command)"></div>
+        <div v-if="output.pending" class="output-loading">
+          <span class="loading-spinner"></span>
+        </div>
         <div v-if="output.stdout" class="output-body" v-html="highlightText(output.stdout)"></div>
         <div v-if="output.stderr" class="output-error" v-html="highlightText(output.stderr)"></div>
-        <div class="output-divider">&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt; end &lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;</div>
+        <div v-if="!output.pending" class="output-divider">&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt; end &lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;</div>
       </div>
     </div>
   </div>
@@ -187,5 +191,33 @@ watch(() => outputStore.outputs.length, async () => {
   color: inherit;
   padding: 1px 2px;
   border-radius: 2px;
+}
+
+.output-pending {
+  color: var(--accent);
+  font-size: 11px;
+  font-style: italic;
+}
+
+.output-loading {
+  padding: 12px 0;
+  display: flex;
+  align-items: center;
+}
+
+.loading-spinner {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border: 2px solid var(--border-color);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spinner 0.8s linear infinite;
+}
+
+@keyframes spinner {
+  to {
+    transform: rotate(360deg);
+  }
 }
 </style>

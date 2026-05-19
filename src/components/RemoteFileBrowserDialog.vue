@@ -92,7 +92,7 @@ function closeDialog() {
 </script>
 
 <template>
-  <div class="remote-overlay" v-if="props.visible" @click.self="closeDialog">
+  <div class="remote-overlay" v-if="props.visible">
     <div class="remote-modal">
       <div class="remote-header">
         <span class="remote-title">选择远程文件</span>

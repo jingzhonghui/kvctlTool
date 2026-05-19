@@ -147,7 +147,7 @@ async function saveConfig() {
       新增 SSH 配置
     </button>
     
-    <div v-if="showDialog" class="modal-overlay" @click.self="closeDialog">
+    <div v-if="showDialog" class="modal-overlay">
       <div class="modal-content">
         <div class="modal-header">SSH 配置</div>
         
