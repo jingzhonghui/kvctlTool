@@ -112,7 +112,7 @@
           ]
         }
       ],
-      "icon": "public/icon.png",
+      "icon": "public",
       "category": "Development",
       "maintainer": "jzh879869954@163.com",
       "vendor": "jzh",
@@ -120,9 +120,22 @@
       "description": "kvctlTool 命令行工具的现代化图形化客户端",
       "desktop": {
         "Name": "kvctlTool",
-        "Comment": "kvctlTool",
-        "Categories": "Development;Database;"
+        "Comment": "kvctlTool 命令行工具的现代化图形化客户端",
+        "Categories": "Development;Database;",
+        "Terminal": "false",
+        "Type": "Application",
+        "StartupNotify": "true"
       }
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "allowElevation": true,
+      "installerIcon": "public/icon.ico",
+      "uninstallerIcon": "public/icon.ico",
+      "installerHeaderIcon": "public/icon.ico",
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true
     }
   }
 }
