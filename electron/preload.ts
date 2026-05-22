@@ -39,6 +39,15 @@ const api = {
     deleteSSHConfig: (id: string) => ipcRenderer.invoke('db:deleteSSHConfig', id),
     getServiceAddresses: () => ipcRenderer.invoke('db:getServiceAddresses'),
     saveServiceAddress: (addr: any) => ipcRenderer.invoke('db:saveServiceAddress', addr)
+  },
+  ai: {
+    generateCommand: (params: { input: string; context: any; threadId?: string }) =>
+      ipcRenderer.invoke('ai:generateCommand', params),
+    getConfig: () => ipcRenderer.invoke('ai:getConfig'),
+    setConfig: (config: any) => ipcRenderer.invoke('ai:setConfig', config),
+    testConnection: () => ipcRenderer.invoke('ai:testConnection'),
+    resetConfig: () => ipcRenderer.invoke('ai:resetConfig'),
+    clearThread: () => ipcRenderer.invoke('ai:clearThread')
   }
 }
 

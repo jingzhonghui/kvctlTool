@@ -17,7 +17,7 @@ export default defineConfig({
           build: {
             outDir: 'dist-electron',
             rollupOptions: {
-              external: ['electron', 'better-sqlite3', 'ssh2', 'keytar', 'electron-store', 'lodash-es', 'lodash-unified']
+              external: ['electron', 'better-sqlite3', 'ssh2', 'keytar', 'electron-store', 'lodash-es', 'lodash-unified', '@anthropic-ai/sdk']
             }
           }
         }

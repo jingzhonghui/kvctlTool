@@ -57,5 +57,44 @@ interface Window {
       getServiceAddresses: () => Promise<any[]>
       saveServiceAddress: (addr: any) => Promise<{ success: boolean }>
     }
+    ai: {
+      generateCommand: (params: {
+        input: string
+        context: {
+          protocol: string
+          host: string
+          port: number
+          toolPath: string
+        }
+        threadId?: string
+      }) => Promise<{
+        success: boolean
+        result?: {
+          command: string
+          description: string
+          parameters: {
+            key?: string
+            value?: string
+            flags?: string[]
+          }
+          safetyLevel: 'safe' | 'warning' | 'dangerous'
+          warnings: string[]
+        }
+        error?: string
+      }>
+      getConfig: () => Promise<{
+        provider: 'openai' | 'openai-compatible'
+        apiKey: string
+        baseUrl?: string
+        model: string
+        temperature: number
+        maxTokens: number
+        enabled: boolean
+      }>
+      setConfig: (config: any) => Promise<{ success: boolean; error?: string }>
+      testConnection: () => Promise<{ success: boolean; error?: string }>
+      resetConfig: () => Promise<{ success: boolean; error?: string }>
+      clearThread: () => Promise<{ success: boolean; error?: string }>
+    }
   }
 }

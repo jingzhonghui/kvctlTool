@@ -3,16 +3,20 @@ import { ref, computed, watch } from 'vue'
 import { useSettingsStore } from '../stores/settings'
 import { useConnectionStore } from '../stores/connection'
 import { useSSHStore } from '../stores/ssh'
+import { useAIStore } from '../stores/ai'
 import RemoteFileBrowserDialog from './RemoteFileBrowserDialog.vue'
 
 const settingsStore = useSettingsStore()
 const connectionStore = useConnectionStore()
 const sshStore = useSSHStore()
+const aiStore = useAIStore()
 
 const toolPath = ref('')
 const outputFontSize = ref(14)
 const uiFontSize = ref(14)
 const showRemoteBrowser = ref(false)
+const testingAI = ref(false)
+const aiTestResult = ref<{ success: boolean; message: string } | null>(null)
 
 const props = defineProps<{
   visible: boolean
@@ -28,6 +32,7 @@ watch(() => props.visible, (val) => {
     toolPath.value = connectionStore.toolPath
     outputFontSize.value = settingsStore.outputFontSize
     uiFontSize.value = settingsStore.uiFontSize
+    aiTestResult.value = null
   }
 })
 
@@ -40,6 +45,26 @@ function save() {
 
 function cancel() {
   emit('update:visible', false)
+}
+
+async function testAIConnection() {
+  testingAI.value = true
+  aiTestResult.value = null
+  try {
+    const result = await aiStore.testConnection()
+    aiTestResult.value = {
+      success: result.success,
+      message: result.success ? '连接成功' : (result.error || '连接失败')
+    }
+  } finally {
+    testingAI.value = false
+  }
+}
+
+async function saveAIConfig() {
+  // 解构出需要保存的配置，避免传递响应式对象
+  const { provider, apiKey, baseUrl, model, temperature, maxTokens, enabled } = aiStore.config
+  await aiStore.saveConfig({ provider, apiKey, baseUrl, model, temperature, maxTokens, enabled })
 }
 
 async function browsePath() {
@@ -145,6 +170,107 @@ function setTheme(dark: boolean) {
               </button>
             </div>
           </div>
+        </div>
+
+        <div class="settings-section">
+          <div class="section-title">AI 助手配置</div>
+          
+          <div class="form-group">
+            <label class="form-label">启用 AI 功能</label>
+            <div class="toggle-switch">
+              <input 
+                type="checkbox" 
+                id="ai-enabled"
+                v-model="aiStore.config.enabled"
+                @change="saveAIConfig"
+              />
+              <label for="ai-enabled" class="toggle-label"></label>
+            </div>
+          </div>
+
+          <template v-if="aiStore.config.enabled">
+            <div class="form-group">
+              <label class="form-label">Provider</label>
+              <select class="form-input" v-model="aiStore.config.provider" @change="saveAIConfig">
+                <option value="openai">OpenAI</option>
+                <option value="openai-compatible">OpenAI 兼容 API</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">
+                API Base URL
+                <span class="label-hint">{{ aiStore.config.provider === 'openai' ? '(可选，用于代理)' : '(必填)' }}</span>
+              </label>
+              <input 
+                class="form-input" 
+                v-model="aiStore.config.baseUrl" 
+                :placeholder="aiStore.config.provider === 'openai' ? '默认: https://api.openai.com/v1' : '如：https://api.example.com/v1'"
+                @blur="saveAIConfig"
+              />
+              <div class="input-hint" v-if="aiStore.config.provider === 'openai-compatible'">
+                使用 OpenAI 兼容 API 时必须填写，例如：OpenRouter、OneAPI、本地模型等
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">API Key</label>
+              <input 
+                class="form-input" 
+                v-model="aiStore.config.apiKey" 
+                type="password"
+                placeholder="输入您的 API Key"
+                @blur="saveAIConfig"
+              />
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">模型</label>
+              <input 
+                class="form-input" 
+                v-model="aiStore.config.model" 
+                list="ai-models"
+                placeholder="如：gpt-4, claude-3-opus"
+                @blur="saveAIConfig"
+              />
+              <datalist id="ai-models">
+                <option v-for="model in aiStore.recommendedModels" :key="model" :value="model" />
+              </datalist>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">Temperature ({{ aiStore.config.temperature }})</label>
+              <div class="font-size-control">
+                <input 
+                  type="range" 
+                  v-model.number="aiStore.config.temperature" 
+                  min="0" 
+                  max="1" 
+                  step="0.1"
+                  @change="saveAIConfig"
+                />
+              </div>
+            </div>
+
+            <div class="ai-test-section">
+              <button 
+                class="btn btn-sm" 
+                @click="testAIConnection"
+                :disabled="testingAI || !aiStore.isValid"
+              >
+                <span v-if="testingAI" class="spinner"></span>
+                {{ testingAI ? '测试中...' : '测试连接' }}
+              </button>
+              
+              <div 
+                v-if="aiTestResult" 
+                class="ai-test-result"
+                :class="{ success: aiTestResult.success, error: !aiTestResult.success }"
+              >
+                {{ aiTestResult.message }}
+              </div>
+            </div>
+          </template>
         </div>
       </div>
       
@@ -314,5 +440,102 @@ function setTheme(dark: boolean) {
   justify-content: flex-end;
   padding: 16px 20px;
   border-top: 1px solid var(--border-color);
+}
+
+.toggle-switch {
+  position: relative;
+  display: inline-block;
+  width: 44px;
+  height: 24px;
+}
+
+.toggle-switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.toggle-label {
+  position: absolute;
+  cursor: pointer;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: var(--border-color);
+  transition: .3s;
+  border-radius: 24px;
+}
+
+.toggle-label:before {
+  position: absolute;
+  content: "";
+  height: 18px;
+  width: 18px;
+  left: 3px;
+  bottom: 3px;
+  background-color: white;
+  transition: .3s;
+  border-radius: 50%;
+}
+
+input:checked + .toggle-label {
+  background-color: var(--accent);
+}
+
+input:checked + .toggle-label:before {
+  transform: translateX(20px);
+}
+
+.ai-test-section {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.ai-test-result {
+  font-size: 12px;
+  padding: 4px 8px;
+  border-radius: 4px;
+}
+
+.ai-test-result.success {
+  color: #23c55e;
+  background: rgba(35, 197, 94, 0.1);
+}
+
+.ai-test-result.error {
+  color: #ef4444;
+  background: rgba(239, 68, 68, 0.1);
+}
+
+.label-hint {
+  font-size: 11px;
+  color: var(--text-secondary);
+  font-weight: normal;
+  margin-left: 4px;
+}
+
+.input-hint {
+  font-size: 11px;
+  color: var(--text-secondary);
+  margin-top: 4px;
+  line-height: 1.4;
+}
+
+.spinner {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border: 2px solid var(--border-color);
+  border-top-color: currentColor;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+  margin-right: 6px;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
 }
 </style>

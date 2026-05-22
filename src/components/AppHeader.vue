@@ -4,6 +4,7 @@ import { useOutputStore } from '../stores/output'
 defineProps<{
   executeMode: 'local' | 'ssh'
   showResultPanel: boolean
+  showAIAssistant: boolean
 }>()
 
 const emit = defineEmits<{
@@ -12,6 +13,7 @@ const emit = defineEmits<{
   (e: 'toggle-theme'): void
   (e: 'open-settings'): void
   (e: 'toggle-result-panel'): void
+  (e: 'toggle-ai-assistant'): void
 }>()
 
 const outputStore = useOutputStore()
@@ -55,6 +57,23 @@ const outputStore = useOutputStore()
       </div>
     </div>
     <div class="header-actions">
+      <button
+        class="icon-btn"
+        :class="{ active: showAIAssistant }"
+        :title="showAIAssistant ? '隐藏 AI 助手' : '显示 AI 助手'"
+        @click="emit('toggle-ai-assistant')"
+      >
+        <svg v-if="showAIAssistant" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M12 2L2 7l10 5 10-5-10-5z"/>
+          <path d="M2 17l10 5 10-5"/>
+          <path d="M2 12l10 5 10-5"/>
+        </svg>
+        <svg v-else width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="opacity: 0.5;">
+          <path d="M12 2L2 7l10 5 10-5-10-5z"/>
+          <path d="M2 17l10 5 10-5"/>
+          <path d="M2 12l10 5 10-5"/>
+        </svg>
+      </button>
       <button
         class="icon-btn"
         :class="{ active: showResultPanel }"

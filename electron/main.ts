@@ -1,8 +1,16 @@
+// 导入 crypto 模块供 LangChain/LangGraph 使用
+import crypto from 'crypto'
+// @ts-ignore - 将 crypto 挂载到全局，供 LangChain 使用
+if (!global.crypto) {
+  global.crypto = crypto as any
+}
+
 import { app, BrowserWindow, ipcMain, dialog } from 'electron'
 import { join } from 'path'
 import { spawn, execSync } from 'child_process'
 import Store from 'electron-store'
 import { Client as SSHClient } from 'ssh2'
+import { registerAIIPC, cleanupAI } from './ai'
 
 const store = new Store()
 let mainWindow: BrowserWindow | null = null
@@ -37,6 +45,7 @@ function createWindow() {
 
 app.whenReady().then(() => {
   createWindow()
+  registerAIIPC()
   
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
@@ -46,6 +55,7 @@ app.whenReady().then(() => {
 })
 
 app.on('window-all-closed', () => {
+  cleanupAI()
   if (process.platform !== 'darwin') {
     app.quit()
   }

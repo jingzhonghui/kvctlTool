@@ -4,10 +4,12 @@ import { useConnectionStore } from './stores/connection'
 import { useOutputStore } from './stores/output'
 import { useSettingsStore } from './stores/settings'
 import { useSSHStore } from './stores/ssh'
+import { useAIStore } from './stores/ai'
 import ConnectionPanel from './components/ConnectionPanel.vue'
 import KVOperationPanel from './components/KVOperationPanel.vue'
 import AdvancedOptions from './components/AdvancedOptions.vue'
 import SSHManager from './components/SSHManager.vue'
+import AICommandPanel from './components/AICommandPanel.vue'
 import OutputTerminal from './components/OutputTerminal.vue'
 import CommandBar from './components/CommandBar.vue'
 import AppHeader from './components/AppHeader.vue'
@@ -17,20 +19,34 @@ const connectionStore = useConnectionStore()
 const outputStore = useOutputStore()
 const settingsStore = useSettingsStore()
 const sshStore = useSSHStore()
+const aiStore = useAIStore()
 
 const executeMode = ref<'local' | 'ssh'>('local')
 const showSettings = ref(false)
 const showResultPanel = ref(true)
 const sidebarWidth = ref(320)
 const isResizing = ref(false)
+const showAIAssistant = ref(false)
+const aiPanelWidth = ref(350)
 
 onMounted(async () => {
   await settingsStore.loadSettings()
   await connectionStore.loadToolPath()
+  await aiStore.loadConfig()  // 加载 AI 配置
 
   const savedWidth = await window.api.store.get('sidebarWidth')
   if (savedWidth && typeof savedWidth === 'number') {
     sidebarWidth.value = savedWidth
+  }
+
+  const savedAIWidth = await window.api.store.get('aiPanelWidth')
+  if (savedAIWidth && typeof savedAIWidth === 'number') {
+    aiPanelWidth.value = savedAIWidth
+  }
+
+  const savedAIShow = await window.api.store.get('showAIAssistant')
+  if (typeof savedAIShow === 'boolean') {
+    showAIAssistant.value = savedAIShow
   }
 
   const savedMode = await window.api.store.get('executeMode')
@@ -83,6 +99,42 @@ function stopResize() {
   document.removeEventListener('mousemove', onResize)
   document.removeEventListener('mouseup', stopResize)
   window.api.store.set('sidebarWidth', sidebarWidth.value)
+}
+
+function toggleAIAssistant() {
+  showAIAssistant.value = !showAIAssistant.value
+  window.api.store.set('showAIAssistant', showAIAssistant.value)
+}
+
+const isAIResizing = ref(false)
+
+function startAIResize() {
+  isAIResizing.value = true
+  document.body.style.cursor = 'col-resize'
+  document.body.style.userSelect = 'none'
+  document.addEventListener('mousemove', onAIResize)
+  document.addEventListener('mouseup', stopAIResize)
+}
+
+function onAIResize(e: MouseEvent) {
+  if (!isAIResizing.value) return
+  const minWidth = 280
+  const maxWidth = window.innerWidth * 0.5
+  // 从右侧计算宽度
+  const width = window.innerWidth - e.clientX
+  if (width >= minWidth && width <= maxWidth) {
+    aiPanelWidth.value = width
+  }
+}
+
+function stopAIResize() {
+  if (!isAIResizing.value) return
+  isAIResizing.value = false
+  document.body.style.cursor = ''
+  document.body.style.userSelect = ''
+  document.removeEventListener('mousemove', onAIResize)
+  document.removeEventListener('mouseup', stopAIResize)
+  window.api.store.set('aiPanelWidth', aiPanelWidth.value)
 }
 
 async function toggleMode(mode: 'local' | 'ssh') {
@@ -307,11 +359,13 @@ function hideTooltip() {
     <AppHeader
       :execute-mode="executeMode"
       :show-result-panel="showResultPanel"
+      :show-a-i-assistant="showAIAssistant"
       @toggle-mode="toggleMode"
       @clear-output="clearOutput"
       @toggle-theme="toggleTheme"
       @open-settings="openSettings"
       @toggle-result-panel="toggleResultPanel"
+      @toggle-ai-assistant="toggleAIAssistant"
     />
     
     <div class="app-body">
@@ -389,8 +443,16 @@ function hideTooltip() {
         </div>
         <CommandBar />
       </main>
+
+      <!-- AI Assistant Panel -->
+      <template v-if="showAIAssistant">
+        <div class="ai-resizer" @mousedown="startAIResize"></div>
+        <aside class="ai-sidebar" :style="{ width: aiPanelWidth + 'px' }">
+          <AICommandPanel />
+        </aside>
+      </template>
     </div>
-    
+
     <SettingsDialog v-model:visible="showSettings" :execute-mode="executeMode" />
 
     <!-- Tooltip -->
@@ -429,6 +491,26 @@ function hideTooltip() {
 }
 
 .resizer:hover {
+  background: var(--accent);
+}
+
+.ai-sidebar {
+  background: var(--bg-secondary);
+  border-left: 1px solid var(--border-color);
+  overflow-y: auto;
+  overflow-x: hidden;
+  flex-shrink: 0;
+}
+
+.ai-resizer {
+  width: 1px;
+  background: var(--border-color);
+  cursor: col-resize;
+  flex-shrink: 0;
+  transition: background 0.2s;
+}
+
+.ai-resizer:hover {
   background: var(--accent);
 }
 
