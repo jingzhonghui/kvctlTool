@@ -448,7 +448,7 @@ function hideTooltip() {
       <template v-if="showAIAssistant">
         <div class="ai-resizer" @mousedown="startAIResize"></div>
         <aside class="ai-sidebar" :style="{ width: aiPanelWidth + 'px' }">
-          <AICommandPanel />
+          <AICommandPanel @open-settings="showSettings = true" />
         </aside>
       </template>
     </div>
@@ -495,11 +495,12 @@ function hideTooltip() {
 }
 
 .ai-sidebar {
-  background: var(--bg-secondary);
+  background: var(--bg-primary);
   border-left: 1px solid var(--border-color);
-  overflow-y: auto;
-  overflow-x: hidden;
+  overflow: hidden;
   flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
 }
 
 .ai-resizer {

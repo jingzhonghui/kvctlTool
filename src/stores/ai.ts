@@ -25,6 +25,17 @@ export interface CommandGenerationResult {
   warnings: string[]
 }
 
+export type MessageRole = 'user' | 'assistant'
+
+export interface ChatMessage {
+  id: string
+  role: MessageRole
+  content: string
+  timestamp: number
+  commandResult?: CommandGenerationResult
+  isError?: boolean
+}
+
 export const useAIStore = defineStore('ai', () => {
   const config = ref<AIProviderConfig>({
     provider: 'openai',
@@ -40,6 +51,9 @@ export const useAIStore = defineStore('ai', () => {
   const generatedCommand = ref<CommandGenerationResult | null>(null)
   const error = ref<string | null>(null)
   const threadId = ref<string>(`ai-thread-${Date.now()}`)
+
+  // 对话历史
+  const messages = ref<ChatMessage[]>([])
 
   const isEnabled = computed(() => config.value.enabled && config.value.apiKey.length > 0)
 
@@ -111,6 +125,15 @@ export const useAIStore = defineStore('ai', () => {
     error.value = null
     generatedCommand.value = null
 
+    // 添加用户消息到历史
+    const userMessage: ChatMessage = {
+      id: `msg-${Date.now()}-user`,
+      role: 'user',
+      content: input,
+      timestamp: Date.now()
+    }
+    messages.value.push(userMessage)
+
     try {
       console.log('[AI Store] 调用 window.api.ai.generateCommand:', { input, context, threadId: threadId.value })
       const result = await window.api.ai.generateCommand({
@@ -122,13 +145,47 @@ export const useAIStore = defineStore('ai', () => {
 
       if (result.success && result.result) {
         generatedCommand.value = result.result
+
+        // 添加AI消息到历史
+        const assistantMessage: ChatMessage = {
+          id: `msg-${Date.now()}-assistant`,
+          role: 'assistant',
+          content: result.result.description,
+          timestamp: Date.now(),
+          commandResult: result.result
+        }
+        messages.value.push(assistantMessage)
+
+        // 限制历史长度（保留最近 50 条消息）
+        if (messages.value.length > 50) {
+          messages.value = messages.value.slice(-50)
+        }
+
         return result.result
       } else {
         error.value = result.error || '生成命令失败'
+        // 添加错误消息到历史
+        const errorMessage: ChatMessage = {
+          id: `msg-${Date.now()}-error`,
+          role: 'assistant',
+          content: result.error || '生成命令失败',
+          timestamp: Date.now(),
+          isError: true
+        }
+        messages.value.push(errorMessage)
         return null
       }
     } catch (err: any) {
       error.value = err.message || '生成命令时发生错误'
+      // 添加错误消息到历史
+      const errorMessage: ChatMessage = {
+        id: `msg-${Date.now()}-error`,
+        role: 'assistant',
+        content: err.message || '生成命令时发生错误',
+        timestamp: Date.now(),
+        isError: true
+      }
+      messages.value.push(errorMessage)
       return null
     } finally {
       isGenerating.value = false
@@ -142,6 +199,18 @@ export const useAIStore = defineStore('ai', () => {
 
   function resetThread() {
     threadId.value = `ai-thread-${Date.now()}`
+    messages.value = []
+  }
+
+  function clearMessages() {
+    messages.value = []
+  }
+
+  function removeMessage(id: string) {
+    const index = messages.value.findIndex(m => m.id === id)
+    if (index > -1) {
+      messages.value.splice(index, 1)
+    }
   }
 
   return {
@@ -150,6 +219,7 @@ export const useAIStore = defineStore('ai', () => {
     generatedCommand,
     error,
     threadId,
+    messages,
     isEnabled,
     isValid,
     recommendedModels,
@@ -158,6 +228,8 @@ export const useAIStore = defineStore('ai', () => {
     testConnection,
     generateCommand,
     clearGeneratedCommand,
-    resetThread
+    resetThread,
+    clearMessages,
+    removeMessage
   }
 })

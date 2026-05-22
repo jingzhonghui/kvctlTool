@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **kvctlTool** is an Electron desktop application that provides a GUI for `craftctl`/`etcdctl` KV command-line tools. It supports both local execution and SSH remote execution modes.
 
-**Tech Stack**: Electron 28 + Vue 3.4 + TypeScript + Vite + Element Plus + Pinia + ssh2
+**Tech Stack**: Electron 28 + Vue 3.4 + TypeScript + Vite + Element Plus + Pinia + ssh2 + LangChain/LangGraph
 
 ## Common Commands
 
@@ -35,12 +35,24 @@ Handles all Node.js operations:
 - **Local Command Execution**: Uses `child_process.spawn` to run craftctl commands
 - **SSH Operations**: Uses `ssh2` library for connections and remote execution
 - **Data Persistence**: Uses `electron-store` for settings and SSH configs
+- **AI Agent**: LangChain/LangGraph-based command generation via OpenAI-compatible APIs
 
 Key IPC channels exposed via `window.api`:
 - `craftctl:execute` - Execute local craftctl commands
 - `ssh:connect/testConnect/execute/disconnect` - SSH operations
 - `db:*` - Persistent storage operations
 - `dialog:openFile/openFileRemote` - File dialogs (local and SFTP)
+- `ai:generateCommand/getConfig/setConfig/testConnection` - AI command generation
+
+### AI Agent System (`electron/ai/`)
+
+AI command generation using LangChain/LangGraph:
+- **`agents/command-agent.ts`** - ReAct Agent implementation with `createReactAgent`
+- **`tools/command-tools.ts`** - Tool definitions: `list_commands`, `validate_key_format`, `generate_command`
+- **`config/provider-config.ts`** - AI provider configuration (OpenAI/OpenAI-compatible)
+- **`index.ts`** - IPC handlers registration
+
+Uses `@langchain/openai` ChatOpenAI with custom fetch wrapper for response handling.
 
 ### Preload Script (`electron/preload.ts`)
 
@@ -54,11 +66,12 @@ Exposes a secure API bridge (`window.api`) to the renderer process. All main pro
 - `AppHeader.vue` - Mode toggle (local/SSH), theme switch, settings
 - `ConnectionPanel.vue` - Protocol/host/port configuration
 - `KVOperationPanel.vue` - Get/put/delete operations
+- `AICommandPanel.vue` - Natural language to command generation via AI
 - `AdvancedOptions.vue` - Prefix query, keys-only toggles
 - `SSHManager.vue` - SSH config management and connection
 - `OutputTerminal.vue` - Command output display
 - `CommandBar.vue` - Custom command input
-- `SettingsDialog.vue` - Tool path, font size, appearance settings
+- `SettingsDialog.vue` - Tool path, font size, appearance, AI configuration
 - `RemoteFileBrowserDialog.vue` - SFTP file browser for SSH mode
 
 **State Management** (Pinia stores):
@@ -66,6 +79,7 @@ Exposes a secure API bridge (`window.api`) to the renderer process. All main pro
 - `ssh.ts` - SSH configurations and connection status
 - `settings.ts` - Theme, font sizes, query options
 - `output.ts` - Command outputs and toast notifications
+- `ai.ts` - AI configuration, command generation state
 
 ## Key Implementation Details
 
@@ -93,9 +107,21 @@ ipcRenderer.invoke → main.ts handler → spawn/ssh.exec →
 IPC callback → Vue component update
 ```
 
+### AI Command Generation Flow
+
+```
+User input → AICommandPanel → aiStore.generateCommand → 
+window.api.ai.generateCommand → command-agent.ts (ReAct Agent) →
+LLM with tools → generate_command tool → Parsed result → UI display
+```
+
 ### Theme System
 
 CSS variables defined in `style.css` (`:root`). Theme switching updates CSS custom properties and applies Element Plus theme classes (`dark` class for dark mode).
+
+### Global Crypto Polyfill
+
+LangChain/LangGraph requires `crypto` globally. The main.ts imports Node.js crypto and assigns it to `global.crypto` if not present.
 
 ## Release Process
 
@@ -112,3 +138,7 @@ GitHub Actions workflow (`.github/workflows/release.yml`) triggers on version ta
 ## TypeScript Configuration
 
 Path alias `@/` maps to `src/` directory. Included paths: `src/**/*.ts`, `src/**/*.tsx`, `src/**/*.vue`, `electron/**/*.ts`.
+
+## Vite Configuration
+
+Uses `vite-plugin-electron` for main/preload process building. Key externals in build config: `electron`, `ssh2`, `electron-store`.
