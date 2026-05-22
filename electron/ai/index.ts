@@ -88,26 +88,6 @@ export function registerAIIPC() {
     }
   })
 
-  ipcMain.handle('ai:testConnection', async () => {
-    try {
-      const agent = getCommandAgent()
-
-      if (!agent) {
-        return {
-          success: false,
-          error: 'AI 功能未启用或配置无效'
-        }
-      }
-
-      return await agent.testConnection()
-    } catch (error: any) {
-      return {
-        success: false,
-        error: error.message || '连接测试失败'
-      }
-    }
-  })
-
   ipcMain.handle('ai:resetConfig', async () => {
     try {
       const { resetAIConfig } = await import('./config/provider-config')

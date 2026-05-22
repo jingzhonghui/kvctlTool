@@ -15,8 +15,6 @@ const toolPath = ref('')
 const outputFontSize = ref(14)
 const uiFontSize = ref(14)
 const showRemoteBrowser = ref(false)
-const testingAI = ref(false)
-const aiTestResult = ref<{ success: boolean; message: string } | null>(null)
 
 const props = defineProps<{
   visible: boolean
@@ -32,7 +30,6 @@ watch(() => props.visible, (val) => {
     toolPath.value = connectionStore.toolPath
     outputFontSize.value = settingsStore.outputFontSize
     uiFontSize.value = settingsStore.uiFontSize
-    aiTestResult.value = null
   }
 })
 
@@ -45,20 +42,6 @@ function save() {
 
 function cancel() {
   emit('update:visible', false)
-}
-
-async function testAIConnection() {
-  testingAI.value = true
-  aiTestResult.value = null
-  try {
-    const result = await aiStore.testConnection()
-    aiTestResult.value = {
-      success: result.success,
-      message: result.success ? '连接成功' : (result.error || '连接失败')
-    }
-  } finally {
-    testingAI.value = false
-  }
 }
 
 async function saveAIConfig() {
@@ -252,24 +235,6 @@ function setTheme(dark: boolean) {
               </div>
             </div>
 
-            <div class="ai-test-section">
-              <button 
-                class="btn btn-sm" 
-                @click="testAIConnection"
-                :disabled="testingAI || !aiStore.isValid"
-              >
-                <span v-if="testingAI" class="spinner"></span>
-                {{ testingAI ? '测试中...' : '测试连接' }}
-              </button>
-              
-              <div 
-                v-if="aiTestResult" 
-                class="ai-test-result"
-                :class="{ success: aiTestResult.success, error: !aiTestResult.success }"
-              >
-                {{ aiTestResult.message }}
-              </div>
-            </div>
           </template>
         </div>
       </div>

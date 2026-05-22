@@ -102,14 +102,6 @@ export const useAIStore = defineStore('ai', () => {
     }
   }
 
-  async function testConnection() {
-    try {
-      return await window.api.ai.testConnection()
-    } catch (err: any) {
-      return { success: false, error: err.message }
-    }
-  }
-
   async function generateCommand(input: string, context: {
     protocol: string
     host: string
@@ -225,7 +217,6 @@ export const useAIStore = defineStore('ai', () => {
     recommendedModels,
     loadConfig,
     saveConfig,
-    testConnection,
     generateCommand,
     clearGeneratedCommand,
     resetThread,

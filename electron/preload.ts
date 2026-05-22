@@ -45,7 +45,7 @@ const api = {
       ipcRenderer.invoke('ai:generateCommand', params),
     getConfig: () => ipcRenderer.invoke('ai:getConfig'),
     setConfig: (config: any) => ipcRenderer.invoke('ai:setConfig', config),
-    testConnection: () => ipcRenderer.invoke('ai:testConnection'),
+
     resetConfig: () => ipcRenderer.invoke('ai:resetConfig'),
     clearThread: () => ipcRenderer.invoke('ai:clearThread')
   }

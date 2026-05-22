@@ -92,7 +92,6 @@ interface Window {
         enabled: boolean
       }>
       setConfig: (config: any) => Promise<{ success: boolean; error?: string }>
-      testConnection: () => Promise<{ success: boolean; error?: string }>
       resetConfig: () => Promise<{ success: boolean; error?: string }>
       clearThread: () => Promise<{ success: boolean; error?: string }>
     }

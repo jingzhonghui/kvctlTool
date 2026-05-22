@@ -323,45 +323,6 @@ craftctl 是一个用于操作分布式 KV 存储的命令行工具。
     return new Error(error?.message || '生成命令时发生未知错误')
   }
 
-  async testConnection(): Promise<{ success: boolean; error?: string }> {
-    try {
-      const model = this.createModel()
-
-      console.log('[AI Agent] 测试连接...')
-
-      // 使用简单的 invoke 测试连接
-      const response = await model.invoke([
-        new SystemMessage('你是一个有帮助的助手。'),
-        new HumanMessage('Hello, this is a connection test. Please respond with "OK".')
-      ])
-
-      if (response.content) {
-        console.log('[AI Agent] 连接测试成功')
-        return { success: true }
-      }
-      return { success: false, error: '返回内容为空' }
-    } catch (error: any) {
-      console.error('[AI Agent] 连接测试失败:', error)
-      // 处理超时错误
-      if (error.name === 'TimeoutError' || error.message?.includes('timed out') || error.message?.includes('timeout')) {
-        return { success: false, error: '请求超时，请检查网络连接' }
-      }
-      if (error.code === 'ECONNABORTED' || error.code === 'ETIMEDOUT') {
-        return { success: false, error: '连接超时，请检查网络或 Base URL 是否正确' }
-      }
-      if (error.response) {
-        const status = error.response.status
-        const data = error.response.data
-        if (status === 401) return { success: false, error: 'API Key 无效或已过期' }
-        if (status === 429) return { success: false, error: '请求过于频繁，请稍后重试' }
-        if (status >= 500) return { success: false, error: `服务器错误 (${status})` }
-        return { success: false, error: data?.error?.message || `API 错误 (${status})` }
-      }
-      if (error.code === 'ECONNREFUSED') return { success: false, error: '无法连接到 API 服务器，请检查 Base URL' }
-      return { success: false, error: error.message || '连接测试失败' }
-    }
-  }
-
   updateConfig(config: AIProviderConfig): void {
     this._config = config
     // 配置更新时重置 Agent 和历史
