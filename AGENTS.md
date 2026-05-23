@@ -34,7 +34,7 @@ Never import Node.js modules directly in `src/` files.
 ## Build System Quirks
 
 - **Vite + Electron Plugin**: Uses `vite-plugin-electron` for main/preload bundling
-- **Externals**: `electron`, `ssh2`, `electron-store` must be external (see `vite.config.ts`)
+- **Externals** (main process): `electron`, `ssh2`, `electron-store`, `better-sqlite3`, `keytar`, `lodash-es`, `lodash-unified`, `@anthropic-ai/sdk`
 - **ASAR disabled**: `asar: false` in package.json for native module compatibility
 - **Native modules**: `ssh2` and its deps (`cpu-features`, `nan`, etc.) explicitly included in build files
 
