@@ -1,9 +1,10 @@
 import { ChatOpenAI } from '@langchain/openai'
-import { HumanMessage, AIMessage, SystemMessage } from '@langchain/core/messages'
+import { HumanMessage, AIMessage } from '@langchain/core/messages'
 import type { BaseMessage } from '@langchain/core/messages'
 import type { AIProviderConfig } from '../config/provider-config'
 import { listCommands, validateKeyFormat, generateCommand } from '../tools/command-tools'
 import { createAgent } from 'langchain'
+import { systemPrompt } from '../prompts/command-prompts'
 
 // 定义命令生成结果的结构
 export interface CommandGenerationResult {
@@ -100,62 +101,15 @@ export class CommandGenerationAgent {
   }
 
   private buildSystemPrompt(context: ConnectionContext): string {
-    return `你是 craftctl 命令行工具的专家助手。
-
-craftctl 是一个用于操作分布式 KV 存储的命令行工具。
-
-## 当前连接配置
-- 协议: ${context.protocol}
-- 地址: ${context.host}:${context.port}
-- 工具路径: ${context.toolPath}
-
-## 可用命令
-1. get <key> [options] - 查询指定 key 的值
-   选项：--prefix（前缀查询），--keys-only（只返回 key）
-
-2. put <key> <value> - 存储 key-value
-
-3. del <key> - 删除指定 key
-
-4. member list - 查询集群成员列表
-
-## Key 格式要求
-- 必须以 "/" 开头
-- 只能包含字母、数字、下划线、连字符、点号和斜杠
-
-## 安全级别说明
-- safe: 只读操作（如 get）
-- warning: 单条数据修改（如 put/del 单个 key）
-- dangerous: 批量操作或前缀删除（如 del --prefix）
-
-## 你的工作流程
-1. 如果需要了解可用命令，调用 list_commands 工具
-2. 如果需要验证 key 格式，调用 validate_key_format 工具
-3. 当你理解用户意图后，**必须**调用 generate_command 工具输出最终结果
-
-## 命令生成规范
-完整命令格式: {toolPath} -e {protocol}://{host}:{port} <command>
-
-重要：请始终以 generate_command 工具调用来结束对话，输出最终命令。`
+    return systemPrompt(context.protocol,context.host,context.port.toString(),context.toolPath)
   }
 
-  async generate(
-    userInput: string,
-    context: ConnectionContext,
-    _threadId?: string
-  ): Promise<CommandGenerationResult> {
-    try {
-      const contextChanged = !this._context ||
+  private buildMessage(context: ConnectionContext,_threadId?: string): any[] {
+    const contextChanged = !this._context ||
         this._context.protocol !== context.protocol ||
         this._context.host !== context.host ||
         this._context.port !== context.port ||
         this._context.toolPath !== context.toolPath
-
-      console.log('[AI Agent] 检查 Agent 状态:', {
-        contextChanged,
-        hasAgent: !!this.agent,
-        input: userInput
-      })
 
       // 如果上下文变化或 Agent 未创建，重新创建
       if (contextChanged || !this.agent) {
@@ -185,10 +139,20 @@ craftctl 是一个用于操作分布式 KV 存储的命令行工具。
         }
       }
 
+      return messages
+  }
+
+  async generate(
+    userInput: string,
+    context: ConnectionContext,
+    _threadId?: string
+  ): Promise<CommandGenerationResult> {
+    try {
+      
+      //构造输入
+      const messages = this.buildMessage(context,_threadId)
       // 添加当前用户输入
       messages.push({ role: 'user', content: userInput })
-
-      console.log('[AI Agent] 调用 Agent，消息数:', messages.length)
 
       // 调用 Agent
       const result = await this.agent.invoke({ messages })
