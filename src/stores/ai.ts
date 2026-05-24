@@ -119,6 +119,7 @@ export const useAIStore = defineStore('ai', () => {
     return new Promise((resolve) => {
       let accumulatedText = ''
       let finalResult: CommandGenerationResult | null = null
+      let toolCommandResult: CommandGenerationResult | null = null
 
       const cancelFn = window.api.ai.chatStream(
         { input, context, threadId: threadId.value },
@@ -147,29 +148,48 @@ export const useAIStore = defineStore('ai', () => {
 
             case 'tool_end':
               currentTool.value = null
-              console.log('[AI Store] Tool 调用完成:', event.tool)
+              console.log('[AI Store] Tool 调用完成:', event.tool, event.result)
+              if (event.result) {
+                const parsedToolResult = typeof event.result === 'object' && 'command' in event.result
+                  ? normalizeCommandResult(event.result)
+                  : parseFinalOutput(String(event.result))
+                if (parsedToolResult) {
+                  toolCommandResult = parsedToolResult
+                }
+              }
               break
 
             case 'complete':
               isStreaming.value = false
               isGenerating.value = false
 
-        // 解析最终结果
-        finalResult = parseFinalOutput(accumulatedText)
-        generatedCommand.value = finalResult
+              // 优先使用后端返回的结构化 finalOutput，避免纯工具调用时没有 token 导致界面空白
+              if (event.finalOutput && typeof event.finalOutput === 'object' && 'command' in event.finalOutput) {
+                finalResult = normalizeCommandResult(event.finalOutput)
+              } else if (toolCommandResult) {
+                finalResult = toolCommandResult
+              } else {
+                const finalText = typeof event.finalOutput === 'string' ? event.finalOutput : accumulatedText
+                if (!accumulatedText && finalText) {
+                  accumulatedText = finalText
+                }
+                finalResult = parseFinalOutput(accumulatedText)
+              }
+              generatedCommand.value = finalResult
 
-        // 更新消息为最终状态
-        const finalMsg = messages.value.find(m => m.id === aiMessageId)
-        if (finalMsg) {
-          finalMsg.isStreaming = false
-          if (finalResult) {
-            finalMsg.type = 'command'
-            finalMsg.commandResult = finalResult
-            finalMsg.content = finalResult.description
-          } else {
-            finalMsg.type = 'text'
-          }
-        }
+              // 更新消息为最终状态
+              const finalMsg = messages.value.find(m => m.id === aiMessageId)
+              if (finalMsg) {
+                finalMsg.isStreaming = false
+                if (finalResult) {
+                  finalMsg.type = 'command'
+                  finalMsg.commandResult = finalResult
+                  finalMsg.content = finalResult.description
+                } else {
+                  finalMsg.type = 'text'
+                  finalMsg.content = accumulatedText || '已完成'
+                }
+              }
 
               // 限制历史长度
               if (messages.value.length > 50) {
@@ -204,6 +224,20 @@ export const useAIStore = defineStore('ai', () => {
     })
   }
 
+  function normalizeCommandResult(result: any): CommandGenerationResult {
+    return {
+      command: result.command,
+      description: result.description || 'AI 生成的命令',
+      parameters: {
+        key: result.key,
+        value: result.value,
+        flags: result.flags || result.parameters?.flags || []
+      },
+      safetyLevel: result.safetyLevel || 'warning',
+      warnings: result.warnings || []
+    }
+  }
+
   // 解析最终输出
   function parseFinalOutput(text: string): CommandGenerationResult | null {
     // 尝试从文本中提取 generate_command 的结果
@@ -229,6 +263,19 @@ export const useAIStore = defineStore('ai', () => {
       }
     } catch {
       // 解析失败，返回文本回复
+    }
+
+    const commandMatch = text.match(/命令已生成[:：]\s*(.+)/)
+    if (commandMatch) {
+      const descriptionMatch = text.match(/描述[:：]\s*(.+)/)
+      const safetyMatch = text.match(/安全级别[:：]\s*(safe|warning|dangerous)/)
+      return {
+        command: commandMatch[1].trim(),
+        description: descriptionMatch?.[1]?.trim() || 'AI 生成的命令',
+        parameters: { flags: [] },
+        safetyLevel: (safetyMatch?.[1] as CommandGenerationResult['safetyLevel']) || 'warning',
+        warnings: []
+      }
     }
 
     // 如果不是命令，返回 null（表示是纯文本回复）

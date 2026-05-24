@@ -6,6 +6,7 @@
   "main": "dist-electron/main.js",
   "scripts": {
     "dev": "vite",
+    "dev:win": "chcp 65001 > nul && vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
     "build:linux": "npm run build && electron-builder --linux",

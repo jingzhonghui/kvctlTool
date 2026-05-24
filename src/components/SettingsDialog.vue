@@ -188,11 +188,11 @@ function setTheme(dark: boolean) {
               <input 
                 class="form-input" 
                 v-model="aiStore.config.baseUrl" 
-                :placeholder="aiStore.config.provider === 'openai' ? '默认: https://api.openai.com/v1' : '如：https://api.example.com/v1'"
+                :placeholder="aiStore.config.provider === 'openai' ? '默认: https://api.openai.com/v1' : '按服务商文档填写，如：https://api.example.com/v1'"
                 @blur="saveAIConfig"
               />
               <div class="input-hint" v-if="aiStore.config.provider === 'openai-compatible'">
-                使用 OpenAI 兼容 API 时必须填写，例如：OpenRouter、OneAPI、本地模型等
+                使用 OpenAI 兼容 API 时必须填写，系统不会自动追加 /v1，请按服务商文档填写完整 Base URL
               </div>
             </div>
 

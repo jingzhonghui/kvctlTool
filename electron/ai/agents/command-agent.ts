@@ -37,6 +37,13 @@ export interface ConnectionContext {
 // 修复 fetch 来处理可能的响应问题
 const fixedFetch = async (...args: Parameters<typeof fetch>): Promise<Response> => {
   const response = await fetch(...args)
+
+  // 流式响应必须保留原始 Response，否则 SSE 会被破坏，导致 LangChain 收不到任何 chunk
+  const contentType = response.headers.get('content-type') || ''
+  if (contentType.includes('text/event-stream')) {
+    return response
+  }
+
   const text = await response.text()
   let data: any = text
   // 尝试解析 JSON，处理可能的嵌套 JSON 字符串
@@ -52,6 +59,74 @@ const fixedFetch = async (...args: Parameters<typeof fetch>): Promise<Response> 
     statusText: response.statusText,
     headers: { 'content-type': 'application/json' }
   })
+}
+
+function extractCommandResult(input: any): CommandGenerationResult | null {
+  if (!input) return null
+
+  if (Array.isArray(input)) {
+    for (const item of input) {
+      const result = extractCommandResult(item)
+      if (result) return result
+    }
+    return null
+  }
+
+  if (typeof input === 'object') {
+    if (input.command) {
+      return {
+        command: input.command,
+        description: input.description || 'AI 生成的命令',
+        parameters: {
+          key: input.key || input.parameters?.key,
+          value: input.value || input.parameters?.value,
+          flags: input.flags || input.parameters?.flags || []
+        },
+        safetyLevel: input.safetyLevel || 'warning',
+        warnings: input.warnings || []
+      }
+    }
+
+    return extractCommandResult(input.args) ||
+      extractCommandResult(input.arguments) ||
+      extractCommandResult(input.content) ||
+      extractCommandResult(input.kwargs)
+  }
+
+  if (typeof input !== 'string') return null
+
+  const text = input.trim()
+  if (!text) return null
+
+  try {
+    return extractCommandResult(JSON.parse(text))
+  } catch {
+    // 继续尝试从文本中提取
+  }
+
+  const jsonMatch = text.match(/\{[\s\S]*\}/)
+  if (jsonMatch) {
+    try {
+      return extractCommandResult(JSON.parse(jsonMatch[0]))
+    } catch {
+      // 继续尝试旧文本格式
+    }
+  }
+
+  const commandMatch = text.match(/命令已生成[:：]\s*(.+)/)
+  if (commandMatch) {
+    const descriptionMatch = text.match(/描述[:：]\s*(.+)/)
+    const safetyMatch = text.match(/安全级别[:：]\s*(safe|warning|dangerous)/)
+    return {
+      command: commandMatch[1].trim(),
+      description: descriptionMatch?.[1]?.trim() || 'AI 生成的命令',
+      parameters: { flags: [] },
+      safetyLevel: (safetyMatch?.[1] as CommandGenerationResult['safetyLevel']) || 'warning',
+      warnings: []
+    }
+  }
+
+  return null
 }
 
 export class CommandGenerationAgent {
@@ -73,12 +148,8 @@ export class CommandGenerationAgent {
     }
 
     if (baseUrl && baseUrl.length > 0) {
-      // 确保 baseURL 以 /v1 结尾（OpenAI 标准）
-      let normalizedUrl = baseUrl.replace(/\/+$/, '')
-      if (!normalizedUrl.endsWith('/v1')) {
-        normalizedUrl = `${normalizedUrl}/v1`
-      }
-      configuration.baseURL = normalizedUrl
+      // 使用用户配置的 OpenAI-compatible Base URL，仅移除末尾斜杠
+      configuration.baseURL = baseUrl.replace(/\/+$/, '')
     }
 
     console.log('[AI Agent] 创建 ChatOpenAI 模型:', {
@@ -94,6 +165,7 @@ export class CommandGenerationAgent {
       apiKey: this._config.apiKey,
       configuration,
       streaming: true, // 启用流式输出
+      streamUsage: false, // 兼容部分 OpenAI-compatible 服务不支持 stream_options.include_usage
       verbose: false
     })
   }
@@ -141,6 +213,7 @@ export class CommandGenerationAgent {
       )
 
       let accumulatedContent = ''
+      let lastCommandResult: CommandGenerationResult | null = null
       const toolCallsMap = new Map<string, boolean>()
 
       for await (const chunk of stream) {
@@ -148,15 +221,23 @@ export class CommandGenerationAgent {
         const [streamMode, data] = chunk
 
         if (streamMode === 'messages' && data) {
-          // 处理消息流
-          const messages = Array.isArray(data) ? data : [data]
-          if (messages.length > 0) {
-            const lastMessage = messages[messages.length - 1]
+          // 处理消息流。LangGraph messages 模式可能返回 [message, metadata]
+          const lastMessage = Array.isArray(data) && data.length >= 2 && data[0]?.content !== undefined
+            ? data[0]
+            : Array.isArray(data)
+              ? data[data.length - 1]
+              : data
+          if (lastMessage) {
 
             // 检测 Tool 调用开始
             const lastMsgAny = lastMessage as any
             if (lastMsgAny.tool_calls && lastMsgAny.tool_calls.length > 0) {
               for (const toolCall of lastMsgAny.tool_calls) {
+                const commandResult = extractCommandResult(toolCall)
+                if (commandResult) {
+                  lastCommandResult = commandResult
+                }
+
                 if (!toolCallsMap.has(toolCall.id)) {
                   toolCallsMap.set(toolCall.id, true)
                   yield {
@@ -167,16 +248,12 @@ export class CommandGenerationAgent {
               }
             }
 
-            // 输出文本内容
+            // 输出文本内容。流式 chunk 通常只包含增量 token，而不是累计全文
             if (lastMessage.content && typeof lastMessage.content === 'string') {
-              // 只输出新增的内容
-              const newContent = lastMessage.content.substring(accumulatedContent.length)
-              if (newContent) {
-                accumulatedContent = lastMessage.content
-                yield {
-                  type: 'token',
-                  content: newContent
-                }
+              accumulatedContent += lastMessage.content
+              yield {
+                type: 'token',
+                content: lastMessage.content
               }
             }
           }
@@ -188,10 +265,16 @@ export class CommandGenerationAgent {
           for (let i = messages.length - 1; i >= 0; i--) {
             const msg = messages[i] as any
             if (msg.tool_call_id && msg.content) {
+              const result = msg.content
+              const commandResult = extractCommandResult(result)
+              if (commandResult) {
+                lastCommandResult = commandResult
+              }
+
               yield {
                 type: 'tool_end',
                 tool: '', // Tool 名称需要从之前的调用中获取
-                result: msg.content
+                result
               }
               break // 只获取最新的 tool result
             }
@@ -199,15 +282,18 @@ export class CommandGenerationAgent {
         }
       }
 
+      const finalOutput = lastCommandResult || accumulatedContent
+      console.log('[AI Agent] 最终输出:', typeof finalOutput === 'string' ? finalOutput.substring(0, 200) : finalOutput)
+
       // 流结束
       yield {
         type: 'complete',
-        finalOutput: accumulatedContent
+        finalOutput
       }
 
       // 更新对话历史
       this._threadMessages.push(new HumanMessage(userInput))
-      this._threadMessages.push(new AIMessage(accumulatedContent))
+      this._threadMessages.push(new AIMessage(typeof finalOutput === 'string' ? finalOutput : JSON.stringify(finalOutput)))
 
       // 限制历史长度（保留最近 20 条）
       if (this._threadMessages.length > 20) {

@@ -84,14 +84,19 @@ export const validateKeyFormat = tool(
 
 // 定义工具：生成最终命令
 export const generateCommand = tool(
-  async ({ command, description, safetyLevel }: {
+  async ({ command, description, safetyLevel, warnings }: {
     command: string
     description: string
     safetyLevel: 'safe' | 'warning' | 'dangerous'
     warnings: string[]
   }) => {
-    // 这个工具只是让模型能够输出命令，实际处理在 parseAgentOutput 中
-    return `命令已生成: ${command}\n描述: ${description}\n安全级别: ${safetyLevel}`
+    // 返回结构化结果，供前端稳定渲染命令卡片
+    return JSON.stringify({
+      command,
+      description,
+      safetyLevel,
+      warnings: warnings || []
+    })
   },
   {
     name: 'generate_command',
