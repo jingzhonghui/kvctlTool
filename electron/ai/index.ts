@@ -1,5 +1,6 @@
 import { ipcMain } from 'electron'
 import { CommandGenerationAgent, CommandGenerationResult, ConnectionContext } from './agents/command-agent'
+import { setLastExecutionResult, CommandExecutionResult } from './tools/command-tools'
 import {
   getAIConfig,
   setAIConfig,
@@ -30,6 +31,47 @@ function getCommandAgent(): CommandGenerationAgent | null {
 }
 
 export function registerAIIPC() {
+  // 流式对话接口（v2 新增）
+  ipcMain.on('ai:chatStream', async (event, {
+    input,
+    context,
+    threadId
+  }: {
+    input: string
+    context: ConnectionContext
+    threadId?: string
+  }) => {
+    console.log('[AI IPC] ai:chatStream 被调用:', { input: input.substring(0, 50), context, threadId })
+
+    const agent = getCommandAgent()
+    if (!agent) {
+      console.log('[AI IPC] AI 未配置，返回错误')
+      event.reply('ai:stream:error', {
+        message: 'AI 功能未启用或配置无效，请先在设置中配置 AI Provider'
+      })
+      return
+    }
+
+    try {
+      const stream = agent.generateStream(input, context)
+
+      for await (const chunk of stream) {
+        console.log('[AI IPC] 流式 chunk:', chunk.type, chunk.type === 'token' ? chunk.content?.substring(0, 20) : '')
+        event.reply('ai:stream:chunk', chunk)
+
+        if (chunk.type === 'complete' || chunk.type === 'error') {
+          break
+        }
+      }
+    } catch (error: any) {
+      console.error('[AI IPC] 流式输出失败:', error)
+      event.reply('ai:stream:error', {
+        message: error.message || '流式输出失败'
+      })
+    }
+  })
+
+  // 保留原有的非流式接口（向后兼容）
   ipcMain.handle('ai:generateCommand', async (_, {
     input,
     context,
@@ -67,6 +109,26 @@ export function registerAIIPC() {
         error: error.message || '生成命令时发生错误'
       }
     }
+  })
+
+  // 保存命令执行结果（供 AI Tool 获取）
+  ipcMain.handle('ai:saveExecutionResult', async (_, result: CommandExecutionResult) => {
+    try {
+      setLastExecutionResult(result)
+      console.log('[AI IPC] 已保存执行结果:', { command: result.command, exitCode: result.exitCode })
+      return { success: true }
+    } catch (error: any) {
+      console.error('[AI IPC] 保存执行结果失败:', error)
+      return { success: false, error: error.message }
+    }
+  })
+
+  // 获取上次执行结果
+  ipcMain.handle('ai:getLastOutput', async () => {
+    const { getLastExecutionResult } = await import('./tools/command-tools')
+    const result = getLastExecutionResult()
+    console.log('[AI IPC] getLastOutput:', result ? '有数据' : '无数据')
+    return result
   })
 
   ipcMain.handle('ai:getConfig', async () => {

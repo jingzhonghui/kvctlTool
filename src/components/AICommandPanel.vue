@@ -60,7 +60,18 @@ async function sendMessage() {
     toolPath: connectionStore.toolPath
   }
 
-  await aiStore.generateCommand(input, context)
+  // 使用新的流式接口
+  const result = await aiStore.sendMessageStream(input, context, (text, isComplete) => {
+    // 流式回调，自动滚动
+    if (!isComplete) {
+      scrollToBottom()
+    }
+  })
+
+  // 如果是命令，可以在这里处理后续逻辑
+  if (result) {
+    console.log('[AI Panel] 生成命令:', result.command)
+  }
 }
 
 async function executeCommand(commandResult: any) {
@@ -110,6 +121,16 @@ async function executeCommand(commandResult: any) {
       duration: result.duration
     })
 
+    // 保存执行结果供 AI 分析
+    await aiStore.saveExecutionResult({
+      command: cmd,
+      stdout: result.stdout,
+      stderr: result.stderr,
+      exitCode: result.exitCode,
+      duration: result.duration,
+      timestamp: Date.now()
+    })
+
     // 保存地址历史
     await connectionStore.saveAddress()
   } finally {
@@ -134,6 +155,17 @@ async function resetThread() {
 function formatTime(timestamp: number) {
   const date = new Date(timestamp)
   return date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
+}
+
+// 获取 Tool 显示名称
+function getToolDisplayName(tool: string): string {
+  const toolNames: Record<string, string> = {
+    'list_commands': '获取命令列表',
+    'validate_key_format': '验证 key 格式',
+    'generate_command': '生成命令',
+    'get_last_output': '获取执行结果'
+  }
+  return toolNames[tool] || tool
 }
 </script>
 
@@ -233,8 +265,18 @@ function formatTime(timestamp: number) {
 
             <!-- AI 消息 -->
             <template v-else>
+              <!-- 流式输出中 -->
+              <div v-if="message.isStreaming" class="ai-message-bubble assistant streaming">
+                {{ message.content }}<span class="streaming-cursor">▊</span>
+              </div>
+
               <!-- 普通文本回复 -->
-              <div v-if="!message.commandResult" class="ai-message-bubble assistant">
+              <div v-else-if="!message.commandResult && message.type === 'text'" class="ai-message-bubble assistant">
+                {{ message.content }}
+              </div>
+
+              <!-- 错误消息 -->
+              <div v-else-if="message.type === 'error'" class="ai-message-bubble assistant error">
                 {{ message.content }}
               </div>
 
@@ -291,8 +333,18 @@ function formatTime(timestamp: number) {
           <div class="ai-message-time">{{ formatTime(message.timestamp) }}</div>
         </div>
 
-        <!-- 生成中状态 -->
-        <div v-if="aiStore.isGenerating" class="ai-message ai-message-assistant">
+        <!-- Tool 调用中状态 -->
+        <div v-if="aiStore.currentTool" class="ai-message ai-message-assistant">
+          <div class="ai-message-content">
+            <div class="ai-tool-calling">
+              <span class="tool-icon">🔧</span>
+              <span class="tool-text">{{ getToolDisplayName(aiStore.currentTool) }}...</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- 流式输入中状态（当没有消息在流式显示时） -->
+        <div v-else-if="aiStore.isStreaming && !aiStore.messages.some(m => m.isStreaming)" class="ai-message ai-message-assistant">
           <div class="ai-message-content">
             <div class="ai-typing">
               <span class="ai-typing-dot"></span>
@@ -715,6 +767,53 @@ function formatTime(timestamp: number) {
   40% {
     transform: scale(1);
   }
+}
+
+/* 流式输出光标 */
+.streaming-cursor {
+  display: inline-block;
+  animation: blink 1s step-end infinite;
+  color: var(--accent);
+  margin-left: 2px;
+}
+
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
+/* Tool 调用状态 */
+.ai-tool-calling {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 14px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  border-bottom-left-radius: 4px;
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+
+.tool-icon {
+  font-size: 14px;
+}
+
+.tool-text {
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 0.7; }
+  50% { opacity: 1; }
+}
+
+/* 错误消息样式 */
+.ai-message-bubble.error {
+  background: rgba(239, 68, 68, 0.1);
+  border-color: rgba(239, 68, 68, 0.3);
+  color: #ef4444;
 }
 
 /* 按钮样式 */

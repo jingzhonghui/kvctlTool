@@ -1,12 +1,20 @@
 import { ChatOpenAI } from '@langchain/openai'
+import { createAgent } from 'langchain'
 import { HumanMessage, AIMessage } from '@langchain/core/messages'
 import type { BaseMessage } from '@langchain/core/messages'
 import type { AIProviderConfig } from '../config/provider-config'
-import { listCommands, validateKeyFormat, generateCommand } from '../tools/command-tools'
-import { createAgent } from 'langchain'
+import { listCommands, validateKeyFormat, generateCommand, getLastOutput } from '../tools/command-tools'
 import { systemPrompt } from '../prompts/command-prompts'
 
-// 定义命令生成结果的结构
+// 流式事件类型
+export type StreamEvent =
+  | { type: 'token'; content: string }
+  | { type: 'tool_start'; tool: string }
+  | { type: 'tool_end'; tool: string; result: any }
+  | { type: 'complete'; finalOutput?: any }
+  | { type: 'error'; message: string }
+
+// 命令生成结果结构
 export interface CommandGenerationResult {
   command: string
   description: string
@@ -47,7 +55,6 @@ const fixedFetch = async (...args: Parameters<typeof fetch>): Promise<Response> 
 }
 
 export class CommandGenerationAgent {
-  private agent: any = null
   private _config: AIProviderConfig
   private _context: ConnectionContext | null = null
   private _threadMessages: BaseMessage[] = []
@@ -86,181 +93,204 @@ export class CommandGenerationAgent {
       maxTokens: this._config.maxTokens,
       apiKey: this._config.apiKey,
       configuration,
+      streaming: true, // 启用流式输出
       verbose: false
     })
   }
 
-  private createAgent(): any {
-    const chatModel = this.createModel()
-
-    return createAgent({
-      // llm: chatModel,
-      model:chatModel,
-      tools: [listCommands, validateKeyFormat, generateCommand]
-    })
-  }
-
-  private buildSystemPrompt(context: ConnectionContext): string {
-    return systemPrompt(context.protocol,context.host,context.port.toString(),context.toolPath)
-  }
-
-  private buildMessage(context: ConnectionContext,_threadId?: string): any[] {
-    const contextChanged = !this._context ||
+  // 流式生成器方法（v1 版本）
+  async *generateStream(
+    userInput: string,
+    context: ConnectionContext
+  ): AsyncGenerator<StreamEvent, void, unknown> {
+    try {
+      // 检查上下文是否变化
+      const contextChanged = !this._context ||
         this._context.protocol !== context.protocol ||
         this._context.host !== context.host ||
         this._context.port !== context.port ||
         this._context.toolPath !== context.toolPath
 
-      // 如果上下文变化或 Agent 未创建，重新创建
-      if (contextChanged || !this.agent) {
-        console.log('[AI Agent] 创建新的 Agent 实例')
-        this.agent = this.createAgent()
+      if (contextChanged) {
+        console.log('[AI Agent] 上下文变化，重置历史')
         this._context = { ...context }
-        // 上下文变化时清空历史
         this._threadMessages = []
       }
 
-      // 构建系统提示词
-      const systemPrompt = this.buildSystemPrompt(context)
+      // v1: 使用 createAgent
+      const agent = createAgent({
+        model: this.createModel(),
+        tools: [listCommands, validateKeyFormat, generateCommand, getLastOutput],
+        systemPrompt: systemPrompt(context.protocol, context.host, context.port.toString(), context.toolPath)
+      })
 
       // 构建消息列表
-      const messages: any[] = [
-        { role: 'system', content: systemPrompt }
+      const messages: BaseMessage[] = [
+        ...this._threadMessages,
+        new HumanMessage(userInput)
       ]
 
-      // 添加历史消息
-      if (this._threadMessages.length > 0) {
-        for (const msg of this._threadMessages) {
-          if (msg instanceof HumanMessage) {
-            messages.push({ role: 'user', content: msg.content })
-          } else if (msg instanceof AIMessage) {
-            messages.push({ role: 'assistant', content: msg.content })
+      console.log('[AI Agent] 开始流式生成，消息数:', messages.length)
+
+      // v1: 使用 agent.stream
+      const stream = await agent.stream(
+        { messages },
+        {
+          streamMode: ['messages', 'values']
+        }
+      )
+
+      let accumulatedContent = ''
+      const toolCallsMap = new Map<string, boolean>()
+
+      for await (const chunk of stream) {
+        // chunk 是一个数组 [streamMode, data]
+        const [streamMode, data] = chunk
+
+        if (streamMode === 'messages' && data) {
+          // 处理消息流
+          const messages = Array.isArray(data) ? data : [data]
+          if (messages.length > 0) {
+            const lastMessage = messages[messages.length - 1]
+
+            // 检测 Tool 调用开始
+            const lastMsgAny = lastMessage as any
+            if (lastMsgAny.tool_calls && lastMsgAny.tool_calls.length > 0) {
+              for (const toolCall of lastMsgAny.tool_calls) {
+                if (!toolCallsMap.has(toolCall.id)) {
+                  toolCallsMap.set(toolCall.id, true)
+                  yield {
+                    type: 'tool_start',
+                    tool: toolCall.name
+                  }
+                }
+              }
+            }
+
+            // 输出文本内容
+            if (lastMessage.content && typeof lastMessage.content === 'string') {
+              // 只输出新增的内容
+              const newContent = lastMessage.content.substring(accumulatedContent.length)
+              if (newContent) {
+                accumulatedContent = lastMessage.content
+                yield {
+                  type: 'token',
+                  content: newContent
+                }
+              }
+            }
+          }
+        }
+
+        if (streamMode === 'values' && data && data.messages) {
+          // 处理 Tool 结果
+          const messages = data.messages
+          for (let i = messages.length - 1; i >= 0; i--) {
+            const msg = messages[i] as any
+            if (msg.tool_call_id && msg.content) {
+              yield {
+                type: 'tool_end',
+                tool: '', // Tool 名称需要从之前的调用中获取
+                result: msg.content
+              }
+              break // 只获取最新的 tool result
+            }
           }
         }
       }
 
-      return messages
-  }
-
-  async generate(
-    userInput: string,
-    context: ConnectionContext,
-    _threadId?: string
-  ): Promise<CommandGenerationResult> {
-    try {
-      
-      //构造输入
-      const messages = this.buildMessage(context,_threadId)
-      // 添加当前用户输入
-      messages.push({ role: 'user', content: userInput })
-
-      // 调用 Agent
-      const result = await this.agent.invoke({ messages })
-
-      console.log('[AI Agent] Agent 响应完成，消息数:', result.messages.length)
-
-      // 解析 Agent 输出
-      const parsedResult = this.parseAgentOutput(result.messages)
+      // 流结束
+      yield {
+        type: 'complete',
+        finalOutput: accumulatedContent
+      }
 
       // 更新对话历史
       this._threadMessages.push(new HumanMessage(userInput))
-      // 存储最后一条 AI 回复
-      const lastMessage = result.messages[result.messages.length - 1]
-      if (lastMessage.content) {
-        this._threadMessages.push(new AIMessage(lastMessage.content))
-      }
+      this._threadMessages.push(new AIMessage(accumulatedContent))
 
       // 限制历史长度（保留最近 20 条）
       if (this._threadMessages.length > 20) {
         this._threadMessages = this._threadMessages.slice(-20)
       }
 
-      return parsedResult
+      console.log('[AI Agent] 流式生成完成')
+
     } catch (error: any) {
-      console.error('[AI Agent] 生成命令失败:', error)
-      throw this.normalizeError(error)
+      console.error('[AI Agent] 流式生成失败:', error)
+      yield {
+        type: 'error',
+        message: this.normalizeError(error).message
+      }
     }
   }
 
-  private parseAgentOutput(messages: any[]): CommandGenerationResult {
-    // 查找 generate_command 工具调用
-    for (let i = messages.length - 1; i >= 0; i--) {
-      const msg = messages[i]
-      if (msg.tool_calls && Array.isArray(msg.tool_calls)) {
-        for (const toolCall of msg.tool_calls) {
-          if (toolCall.name === 'generate_command') {
-            try {
-              const args = typeof toolCall.args === 'string'
-                ? JSON.parse(toolCall.args)
-                : toolCall.args
+  // 保留原有的非流式方法（用于兼容性）
+  async generate(
+    userInput: string,
+    context: ConnectionContext,
+    _threadId?: string
+  ): Promise<CommandGenerationResult> {
+    const events: StreamEvent[] = []
 
-              return {
-                command: args.command || '',
-                description: args.description || '未提供描述',
-                parameters: {
-                  flags: []
-                },
-                safetyLevel: args.safetyLevel || 'warning',
-                warnings: args.warnings || []
-              }
-            } catch (e) {
-              console.warn('[AI Agent] 解析 generate_command 参数失败:', e)
-            }
-          }
-        }
+    for await (const event of this.generateStream(userInput, context)) {
+      events.push(event)
+      if (event.type === 'complete' || event.type === 'error') {
+        break
       }
     }
 
-    // 如果没有找到工具调用，尝试从最后一条消息提取
-    const lastMessage = messages[messages.length - 1]
-    if (lastMessage && lastMessage.content) {
-      const content = typeof lastMessage.content === 'string'
-        ? lastMessage.content
-        : JSON.stringify(lastMessage.content)
+    // 解析最终结果
+    const completeEvent = events.find(e => e.type === 'complete')
+    if (!completeEvent) {
+      const errorEvent = events.find(e => e.type === 'error')
+      throw new Error(errorEvent?.message || '生成失败')
+    }
 
-      // 尝试提取 JSON
-      const jsonMatch = content.match(/\{[\s\S]*?\}/)
-      if (jsonMatch) {
+    // 尝试从事件中解析命令生成结果
+    return this.parseStreamEvents(events)
+  }
+
+  private parseStreamEvents(events: StreamEvent[]): CommandGenerationResult {
+    // 收集所有 token 内容
+    const content = events
+      .filter((e): e is { type: 'token'; content: string } => e.type === 'token')
+      .map(e => e.content)
+      .join('')
+
+    // 尝试解析 generate_command Tool 调用
+    for (const event of events) {
+      if (event.type === 'tool_end' && event.result) {
         try {
-          const parsed = JSON.parse(jsonMatch[0])
-          if (parsed.command) {
+          const result = typeof event.result === 'string'
+            ? JSON.parse(event.result)
+            : event.result
+
+          // 如果结果是命令生成，返回 CommandGenerationResult
+          if (result.command) {
             return {
-              command: parsed.command,
-              description: parsed.description || 'AI 生成的命令',
+              command: result.command,
+              description: result.description || 'AI 生成的命令',
               parameters: {
-                key: parsed.parameters?.key,
-                value: parsed.parameters?.value,
-                flags: parsed.parameters?.flags || []
+                flags: []
               },
-              safetyLevel: parsed.safetyLevel || 'warning',
-              warnings: parsed.warnings || ['未使用标准工具输出']
+              safetyLevel: result.safetyLevel || 'warning',
+              warnings: result.warnings || []
             }
           }
         } catch {
-          // JSON 解析失败，继续处理
-        }
-      }
-
-      // 尝试从文本中提取命令
-      const commandMatch = content.match(/`{1,3}([^`]+)`/)
-      if (commandMatch) {
-        return {
-          command: commandMatch[1].trim(),
-          description: 'AI 从回复中提取的命令',
-          parameters: { flags: [] },
-          safetyLevel: 'warning',
-          warnings: ['自动提取的命令，请仔细验证']
+          // 解析失败，继续
         }
       }
     }
 
-    // 默认返回
+    // 默认返回文本回复（非命令）
     return {
       command: '',
-      description: '无法解析 Agent 输出',
+      description: content || 'AI 回复',
       parameters: { flags: [] },
-      safetyLevel: 'warning',
-      warnings: ['Agent 未生成有效命令']
+      safetyLevel: 'safe',
+      warnings: []
     }
   }
 
@@ -289,15 +319,18 @@ export class CommandGenerationAgent {
 
   updateConfig(config: AIProviderConfig): void {
     this._config = config
-    // 配置更新时重置 Agent 和历史
-    this.agent = null
+    // 配置更新时重置
     this._context = null
     this._threadMessages = []
   }
 
   clearThread(): void {
     this._threadMessages = []
-    // 保留 Agent 实例，只清空历史
+    // 保留上下文和配置
+  }
+
+  getThreadMessages(): BaseMessage[] {
+    return [...this._threadMessages]
   }
 }
 

@@ -1,40 +1,12 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-
-export type AIProvider = 'openai' | 'openai-compatible'
-
-export interface AIProviderConfig {
-  provider: AIProvider
-  apiKey: string
-  baseUrl?: string
-  model: string
-  temperature: number
-  maxTokens: number
-  enabled: boolean
-}
-
-export interface CommandGenerationResult {
-  command: string
-  description: string
-  parameters: {
-    key?: string
-    value?: string
-    flags?: string[]
-  }
-  safetyLevel: 'safe' | 'warning' | 'dangerous'
-  warnings: string[]
-}
-
-export type MessageRole = 'user' | 'assistant'
-
-export interface ChatMessage {
-  id: string
-  role: MessageRole
-  content: string
-  timestamp: number
-  commandResult?: CommandGenerationResult
-  isError?: boolean
-}
+import type {
+  AIProviderConfig,
+  CommandGenerationResult,
+  ChatMessage,
+  ConnectionContext,
+  CommandExecutionResult
+} from '../../types/ai'
 
 export const useAIStore = defineStore('ai', () => {
   const config = ref<AIProviderConfig>({
@@ -48,6 +20,9 @@ export const useAIStore = defineStore('ai', () => {
   })
 
   const isGenerating = ref(false)
+  const isStreaming = ref(false)
+  const currentStreamText = ref('')
+  const currentTool = ref<string | null>(null)
   const generatedCommand = ref<CommandGenerationResult | null>(null)
   const error = ref<string | null>(null)
   const threadId = ref<string>(`ai-thread-${Date.now()}`)
@@ -102,6 +77,165 @@ export const useAIStore = defineStore('ai', () => {
     }
   }
 
+  // 流式发送消息（v2 新增）
+  async function sendMessageStream(
+    input: string,
+    context: ConnectionContext,
+    onStream?: (text: string, isComplete: boolean) => void
+  ): Promise<CommandGenerationResult | null> {
+    if (!isValid.value) {
+      error.value = 'AI 配置无效或未启用'
+      return null
+    }
+
+    isStreaming.value = true
+    isGenerating.value = true
+    currentStreamText.value = ''
+    currentTool.value = null
+    error.value = null
+    generatedCommand.value = null
+
+    // 添加用户消息到历史
+    const userMessage: ChatMessage = {
+      id: `msg-${Date.now()}-user`,
+      role: 'user',
+      type: 'text',
+      content: input,
+      timestamp: Date.now()
+    }
+    messages.value.push(userMessage)
+
+    // 创建 AI 消息占位（流式填充）
+    const aiMessageId = `msg-${Date.now()}-assistant`
+    messages.value.push({
+      id: aiMessageId,
+      role: 'assistant',
+      type: 'text',
+      content: '',
+      isStreaming: true,
+      timestamp: Date.now()
+    })
+
+    return new Promise((resolve) => {
+      let accumulatedText = ''
+      let finalResult: CommandGenerationResult | null = null
+
+      const cancelFn = window.api.ai.chatStream(
+        { input, context, threadId: threadId.value },
+        (event) => {
+          console.log('[AI Store] 收到流式事件:', event.type)
+
+          switch (event.type) {
+            case 'token':
+              accumulatedText += event.content
+              currentStreamText.value = accumulatedText
+
+              // 更新消息内容
+              const msg = messages.value.find(m => m.id === aiMessageId)
+              if (msg) {
+                msg.content = accumulatedText
+              }
+
+              // 回调通知 UI 更新
+              onStream?.(accumulatedText, false)
+              break
+
+            case 'tool_start':
+              currentTool.value = event.tool || null
+              console.log('[AI Store] Tool 调用开始:', event.tool)
+              break
+
+            case 'tool_end':
+              currentTool.value = null
+              console.log('[AI Store] Tool 调用完成:', event.tool)
+              break
+
+            case 'complete':
+              isStreaming.value = false
+              isGenerating.value = false
+
+        // 解析最终结果
+        finalResult = parseFinalOutput(accumulatedText)
+        generatedCommand.value = finalResult
+
+        // 更新消息为最终状态
+        const finalMsg = messages.value.find(m => m.id === aiMessageId)
+        if (finalMsg) {
+          finalMsg.isStreaming = false
+          if (finalResult) {
+            finalMsg.type = 'command'
+            finalMsg.commandResult = finalResult
+            finalMsg.content = finalResult.description
+          } else {
+            finalMsg.type = 'text'
+          }
+        }
+
+              // 限制历史长度
+              if (messages.value.length > 50) {
+                messages.value = messages.value.slice(-50)
+              }
+
+              onStream?.(accumulatedText, true)
+              cancelFn?.()
+              resolve(finalResult)
+              break
+
+            case 'error':
+              isStreaming.value = false
+              isGenerating.value = false
+              error.value = event.message || '未知错误'
+
+              // 更新消息为错误状态
+              const errorMsg = messages.value.find(m => m.id === aiMessageId)
+              if (errorMsg) {
+                errorMsg.isStreaming = false
+                errorMsg.type = 'error'
+                errorMsg.content = event.message || '未知错误'
+                errorMsg.isError = true
+              }
+
+              cancelFn?.()
+              resolve(null)
+              break
+          }
+        }
+      )
+    })
+  }
+
+  // 解析最终输出
+  function parseFinalOutput(text: string): CommandGenerationResult | null {
+    // 尝试从文本中提取 generate_command 的结果
+    // 格式通常是 Tool 返回的 JSON
+    try {
+      // 查找 JSON 块
+      const jsonMatch = text.match(/\{[\s\S]*?\}/)
+      if (jsonMatch) {
+        const parsed = JSON.parse(jsonMatch[0])
+        if (parsed.command) {
+          return {
+            command: parsed.command,
+            description: parsed.description || 'AI 生成的命令',
+            parameters: {
+              key: parsed.key,
+              value: parsed.value,
+              flags: parsed.flags || []
+            },
+            safetyLevel: parsed.safetyLevel || 'warning',
+            warnings: parsed.warnings || []
+          }
+        }
+      }
+    } catch {
+      // 解析失败，返回文本回复
+    }
+
+    // 如果不是命令，返回 null（表示是纯文本回复）
+    return null
+  }
+
+  // 保留的非流式方法（向后兼容）
   async function generateCommand(input: string, context: {
     protocol: string
     host: string
@@ -117,38 +251,46 @@ export const useAIStore = defineStore('ai', () => {
     error.value = null
     generatedCommand.value = null
 
-    // 添加用户消息到历史
     const userMessage: ChatMessage = {
       id: `msg-${Date.now()}-user`,
       role: 'user',
+      type: 'text',
       content: input,
       timestamp: Date.now()
     }
     messages.value.push(userMessage)
 
     try {
-      console.log('[AI Store] 调用 window.api.ai.generateCommand:', { input, context, threadId: threadId.value })
       const result = await window.api.ai.generateCommand({
         input,
         context,
         threadId: threadId.value
       })
-      console.log('[AI Store] window.api.ai.generateCommand 返回:', result)
 
       if (result.success && result.result) {
-        generatedCommand.value = result.result
+        const commandResult: CommandGenerationResult = {
+          command: result.result.command,
+          description: result.result.description,
+          parameters: {
+            key: result.result.parameters?.key,
+            value: result.result.parameters?.value,
+            flags: result.result.parameters?.flags || []
+          },
+          safetyLevel: result.result.safetyLevel,
+          warnings: result.result.warnings
+        }
+        generatedCommand.value = commandResult
 
-        // 添加AI消息到历史
         const assistantMessage: ChatMessage = {
           id: `msg-${Date.now()}-assistant`,
           role: 'assistant',
-          content: result.result.description,
-          timestamp: Date.now(),
-          commandResult: result.result
+          content: commandResult.description,
+          type: 'command',
+          commandResult: commandResult,
+          timestamp: Date.now()
         }
         messages.value.push(assistantMessage)
 
-        // 限制历史长度（保留最近 50 条消息）
         if (messages.value.length > 50) {
           messages.value = messages.value.slice(-50)
         }
@@ -156,31 +298,41 @@ export const useAIStore = defineStore('ai', () => {
         return result.result
       } else {
         error.value = result.error || '生成命令失败'
-        // 添加错误消息到历史
         const errorMessage: ChatMessage = {
           id: `msg-${Date.now()}-error`,
           role: 'assistant',
           content: result.error || '生成命令失败',
-          timestamp: Date.now(),
-          isError: true
+          type: 'error',
+          isError: true,
+          timestamp: Date.now()
         }
         messages.value.push(errorMessage)
         return null
       }
     } catch (err: any) {
       error.value = err.message || '生成命令时发生错误'
-      // 添加错误消息到历史
       const errorMessage: ChatMessage = {
         id: `msg-${Date.now()}-error`,
         role: 'assistant',
         content: err.message || '生成命令时发生错误',
-        timestamp: Date.now(),
-        isError: true
+        type: 'error',
+        isError: true,
+        timestamp: Date.now()
       }
       messages.value.push(errorMessage)
       return null
     } finally {
       isGenerating.value = false
+    }
+  }
+
+  // 保存命令执行结果
+  async function saveExecutionResult(result: CommandExecutionResult) {
+    try {
+      await window.api.ai.saveExecutionResult(result)
+      console.log('[AI Store] 已保存执行结果')
+    } catch (err: any) {
+      console.error('[AI Store] 保存执行结果失败:', err)
     }
   }
 
@@ -192,6 +344,8 @@ export const useAIStore = defineStore('ai', () => {
   function resetThread() {
     threadId.value = `ai-thread-${Date.now()}`
     messages.value = []
+    currentStreamText.value = ''
+    currentTool.value = null
   }
 
   function clearMessages() {
@@ -208,6 +362,9 @@ export const useAIStore = defineStore('ai', () => {
   return {
     config,
     isGenerating,
+    isStreaming,
+    currentStreamText,
+    currentTool,
     generatedCommand,
     error,
     threadId,
@@ -217,7 +374,9 @@ export const useAIStore = defineStore('ai', () => {
     recommendedModels,
     loadConfig,
     saveConfig,
+    sendMessageStream,
     generateCommand,
+    saveExecutionResult,
     clearGeneratedCommand,
     resetThread,
     clearMessages,

@@ -58,6 +58,46 @@ interface Window {
       saveServiceAddress: (addr: any) => Promise<{ success: boolean }>
     }
     ai: {
+      // 流式对话接口
+      chatStream: (
+        params: {
+          input: string
+          context: {
+            protocol: string
+            host: string
+            port: number
+            toolPath: string
+          }
+          threadId?: string
+        },
+        onChunk: (event: {
+          type: 'token' | 'tool_start' | 'tool_end' | 'complete' | 'error'
+          content?: string
+          tool?: string
+          result?: any
+          finalOutput?: any
+          message?: string
+        }) => void
+      ) => () => void
+      // 保存命令执行结果
+      saveExecutionResult: (result: {
+        command: string
+        stdout: string
+        stderr: string
+        exitCode: number
+        duration: number
+        timestamp: number
+      }) => Promise<{ success: boolean }>
+      // 获取上次执行结果
+      getLastOutput: () => Promise<{
+        command: string
+        stdout: string
+        stderr: string
+        exitCode: number
+        duration: number
+        timestamp: number
+      } | null>
+      // 非流式接口（向后兼容）
       generateCommand: (params: {
         input: string
         context: {
