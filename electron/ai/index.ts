@@ -1,6 +1,6 @@
 import { ipcMain } from 'electron'
 import { CommandGenerationAgent, CommandGenerationResult, ConnectionContext } from './agents/command-agent'
-import { setLastExecutionResult, CommandExecutionResult } from './tools/command-tools'
+import { getLastExecutionResult, CommandExecutionResult, setLastExecutionResult } from './command-history'
 import {
   getAIConfig,
   setAIConfig,
@@ -56,7 +56,7 @@ export function registerAIIPC() {
       const stream = agent.generateStream(input, context)
 
       for await (const chunk of stream) {
-        console.log('[AI IPC] 流式 chunk:', chunk.type, chunk.type === 'token' ? chunk.content?.substring(0, 20) : '')
+        // console.log('[AI IPC] 流式 chunk:', chunk.type, chunk.type === 'token' ? chunk.content?.substring(0, 20) : '')
         event.reply('ai:stream:chunk', chunk)
 
         if (chunk.type === 'complete' || chunk.type === 'error') {
@@ -139,7 +139,6 @@ export function registerAIIPC() {
 
   // 获取上次执行结果
   ipcMain.handle('ai:getLastOutput', async () => {
-    const { getLastExecutionResult } = await import('./tools/command-tools')
     const result = getLastExecutionResult()
     console.log('[AI IPC] getLastOutput:', result ? '有数据' : '无数据')
     return result

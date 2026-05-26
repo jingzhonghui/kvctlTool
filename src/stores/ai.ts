@@ -185,7 +185,12 @@ export const useAIStore = defineStore('ai', () => {
                 if (finalResult && finalResult.command) {
                   finalMsg.type = 'command'
                   finalMsg.commandResult = finalResult
-                  finalMsg.content = finalResult.description
+                  // 保留思考文本，不覆盖为 description
+                  // finalMsg.content 保持为 accumulatedText（AI 的思考过程）
+                  // 保存分析过程
+                  if (finalResult.reasoningProcess) {
+                    finalMsg.reasoningProcess = finalResult.reasoningProcess
+                  }
                 } else {
                   finalMsg.type = 'text'
                   finalMsg.content = accumulatedText || '已完成'
@@ -235,7 +240,8 @@ export const useAIStore = defineStore('ai', () => {
         flags: result.flags || result.parameters?.flags || []
       },
       safetyLevel: result.safetyLevel || 'warning',
-      warnings: result.warnings || []
+      warnings: result.warnings || [],
+      reasoningProcess: result.reasoningProcess
     }
   }
 

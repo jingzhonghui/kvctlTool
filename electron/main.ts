@@ -16,6 +16,9 @@ const store = new Store()
 let mainWindow: BrowserWindow | null = null
 let sshClient: SSHClient | null = null
 
+// 导入命令历史管理（供 AI 分析使用）
+import { setLastExecutionResult } from './ai/command-history'
+
 function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1200,
@@ -146,6 +149,7 @@ ipcMain.handle('craftctl:execute', async (_, params: {
   return new Promise((resolve) => {
     const endpoint = params.endpoint
     const endpointArgs = endpoint.startsWith('http://') ? [`--endpoints=${endpoint}`] : ['-e', endpoint]
+    const fullCommand = `${toolPath} ${[...args, ...endpointArgs, ...params.command.split(' ')].join(' ')}`
     const proc = spawn(toolPath, [...args, ...endpointArgs, ...params.command.split(' ')], {
       env: process.env,
       shell: true
@@ -159,21 +163,40 @@ ipcMain.handle('craftctl:execute', async (_, params: {
 
     proc.on('close', (code) => {
       const duration = Date.now() - startTime
-      resolve({
+      const result = {
         stdout,
         stderr,
-        exitCode: code,
+        exitCode: code ?? -1,
         duration
+      }
+      
+      // 保存执行结果供 AI 分析
+      setLastExecutionResult({
+        command: fullCommand,
+        ...result,
+        timestamp: Date.now()
       })
+      
+      resolve(result)
     })
 
     proc.on('error', (err) => {
-      resolve({
+      const duration = Date.now() - startTime
+      const result = {
         stdout: '',
         stderr: err.message,
         exitCode: -1,
-        duration: Date.now() - startTime
+        duration
+      }
+      
+      // 保存执行结果供 AI 分析
+      setLastExecutionResult({
+        command: fullCommand,
+        ...result,
+        timestamp: Date.now()
       })
+      
+      resolve(result)
     })
   })
 })
@@ -292,7 +315,17 @@ ipcMain.handle('ssh:execute', async (_, command: string) => {
     
     sshClient!.exec(command, (err, stream) => {
       if (err) {
-        resolve({ stdout: '', stderr: err.message, exitCode: -1, duration: Date.now() - startTime })
+        const duration = Date.now() - startTime
+        const result = { stdout: '', stderr: err.message, exitCode: -1, duration }
+        
+        // 保存执行结果供 AI 分析
+        setLastExecutionResult({
+          command,
+          ...result,
+          timestamp: Date.now()
+        })
+        
+        resolve(result)
         return
       }
       
@@ -303,7 +336,17 @@ ipcMain.handle('ssh:execute', async (_, command: string) => {
       stream.stderr.on('data', (data: Buffer) => { stderr += data.toString() })
       
       stream.on('close', (code: number) => {
-        resolve({ stdout, stderr, exitCode: code || 0, duration: Date.now() - startTime })
+        const duration = Date.now() - startTime
+        const result = { stdout, stderr, exitCode: code || 0, duration }
+        
+        // 保存执行结果供 AI 分析
+        setLastExecutionResult({
+          command,
+          ...result,
+          timestamp: Date.now()
+        })
+        
+        resolve(result)
       })
     })
   })

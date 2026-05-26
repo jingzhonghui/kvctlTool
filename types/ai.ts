@@ -22,6 +22,7 @@ export interface CommandGenerationResult {
   }
   safetyLevel: 'safe' | 'warning' | 'dangerous'
   warnings: string[]
+  reasoningProcess?: ReasoningProcess
 }
 
 // 连接上下文
@@ -68,6 +69,20 @@ export interface ErrorResponse {
 
 export type AIResponse = CommandGenerationResult | TextResponse | ErrorResponse
 
+// AI 分析过程步骤（关键节点，不包含流式思考内容）
+export interface ReasoningStep {
+  type: 'tool_call' | 'tool_result' | 'safety_check'
+  content: string
+  toolName?: string
+  timestamp: number
+}
+
+// AI 分析过程
+export interface ReasoningProcess {
+  steps: ReasoningStep[]
+  summary: string
+}
+
 // 聊天消息
 export type MessageRole = 'user' | 'assistant'
 export type MessageType = 'text' | 'command' | 'error'
@@ -78,6 +93,7 @@ export interface ChatMessage {
   type: MessageType
   content: string
   commandResult?: CommandGenerationResult
+  reasoningProcess?: ReasoningProcess
   isStreaming?: boolean
   isError?: boolean
   timestamp: number

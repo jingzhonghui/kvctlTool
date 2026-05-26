@@ -1,25 +1,8 @@
 import { tool } from '@langchain/core/tools'
 import * as z from 'zod'
+import { getLastExecutionResult, CommandExecutionResult } from '../command-history'
 
-// 存储最近一次命令执行结果（供 get_last_output 使用）
-let lastExecutionResult: CommandExecutionResult | null = null
-
-export interface CommandExecutionResult {
-  command: string
-  stdout: string
-  stderr: string
-  exitCode: number
-  duration: number
-  timestamp: number
-}
-
-export function setLastExecutionResult(result: CommandExecutionResult): void {
-  lastExecutionResult = result
-}
-
-export function getLastExecutionResult(): CommandExecutionResult | null {
-  return lastExecutionResult
-}
+export type { CommandExecutionResult }
 
 export const listCommands = tool(
   async () => {

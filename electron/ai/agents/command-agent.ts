@@ -25,6 +25,16 @@ export interface CommandGenerationResult {
   }
   safetyLevel: 'safe' | 'warning' | 'dangerous'
   warnings: string[]
+  reasoningProcess?: {
+    steps: Array<{
+      type: 'thought' | 'tool_call' | 'tool_result' | 'safety_check'
+      content: string
+      toolName?: string
+      toolResult?: any
+      timestamp: number
+    }>
+    summary: string
+  }
 }
 
 export interface ConnectionContext {
@@ -215,6 +225,14 @@ export class CommandGenerationAgent {
       let accumulatedContent = ''
       let lastCommandResult: CommandGenerationResult | null = null
       const toolCallsMap = new Map<string, boolean>()
+      
+      // 收集关键分析步骤（简化版，只记录关键节点）
+      const keySteps: Array<{
+        type: 'tool_call' | 'tool_result' | 'safety_check'
+        content: string
+        toolName?: string
+        timestamp: number
+      }> = []
 
       for await (const chunk of stream) {
         // chunk 是一个数组 [streamMode, data]
@@ -233,13 +251,25 @@ export class CommandGenerationAgent {
             const lastMsgAny = lastMessage as any
             if (lastMsgAny.tool_calls && lastMsgAny.tool_calls.length > 0) {
               for (const toolCall of lastMsgAny.tool_calls) {
-                const commandResult = extractCommandResult(toolCall)
-                if (commandResult) {
-                  lastCommandResult = commandResult
+                // 只有 generate_command 工具才提取命令结果
+                if (toolCall.name === 'generate_command') {
+                  const commandResult = extractCommandResult(toolCall)
+                  if (commandResult) {
+                    lastCommandResult = commandResult
+                  }
                 }
 
                 if (!toolCallsMap.has(toolCall.id)) {
                   toolCallsMap.set(toolCall.id, true)
+                  
+                  // 记录工具调用步骤
+                  keySteps.push({
+                    type: 'tool_call',
+                    content: `调用工具: ${toolCall.name}`,
+                    toolName: toolCall.name,
+                    timestamp: Date.now()
+                  })
+                  
                   yield {
                     type: 'tool_start',
                     tool: toolCall.name
@@ -251,6 +281,8 @@ export class CommandGenerationAgent {
             // 输出文本内容。流式 chunk 通常只包含增量 token，而不是累计全文
             if (lastMessage.content && typeof lastMessage.content === 'string') {
               accumulatedContent += lastMessage.content
+              
+              // 思考内容通过 token 实时流式输出，不单独记录为步骤
               yield {
                 type: 'token',
                 content: lastMessage.content
@@ -266,14 +298,27 @@ export class CommandGenerationAgent {
             const msg = messages[i] as any
             if (msg.tool_call_id && msg.content) {
               const result = msg.content
-              const commandResult = extractCommandResult(result)
-              if (commandResult) {
-                lastCommandResult = commandResult
+              const toolName = msg.name || 'unknown'
+
+              // 只有 generate_command 工具的结果才提取命令结果
+              if (toolName === 'generate_command') {
+                const commandResult = extractCommandResult(result)
+                if (commandResult) {
+                  lastCommandResult = commandResult
+                }
               }
+
+              // 记录工具结果步骤
+              keySteps.push({
+                type: 'tool_result',
+                content: `工具 ${toolName} 返回结果`,
+                toolName: toolName,
+                timestamp: Date.now()
+              })
 
               yield {
                 type: 'tool_end',
-                tool: '', // Tool 名称需要从之前的调用中获取
+                tool: toolName,
                 result
               }
               break // 只获取最新的 tool result
@@ -282,7 +327,27 @@ export class CommandGenerationAgent {
         }
       }
 
-      const finalOutput = lastCommandResult || accumulatedContent
+      // 构建最终输出，包含分析过程
+      let finalOutput: any = lastCommandResult || accumulatedContent
+      
+      // 如果是命令生成结果，附加分析过程
+      if (lastCommandResult && typeof lastCommandResult === 'object') {
+        // 添加安全评估步骤
+        keySteps.push({
+          type: 'safety_check',
+          content: `安全级别评估: ${lastCommandResult.safetyLevel}`,
+          timestamp: Date.now()
+        })
+        
+        finalOutput = {
+          ...lastCommandResult,
+          reasoningProcess: {
+            steps: keySteps,
+            summary: this.generateReasoningSummary(keySteps, lastCommandResult)
+          }
+        }
+      }
+      
       console.log('[AI Agent] 最终输出:', typeof finalOutput === 'string' ? finalOutput.substring(0, 200) : finalOutput)
 
       // 流结束
@@ -309,6 +374,29 @@ export class CommandGenerationAgent {
         message: this.normalizeError(error).message
       }
     }
+  }
+
+  // 生成分析过程摘要
+  private generateReasoningSummary(
+    steps: Array<{ type: string; content: string; toolName?: string }>,
+    commandResult: CommandGenerationResult
+  ): string {
+    const toolCalls = steps.filter(s => s.type === 'tool_call')
+    
+    let summary = `AI 分析了您的请求，`
+    
+    if (toolCalls.length > 0) {
+      const toolNames = toolCalls.map(s => s.toolName).filter(Boolean)
+      summary += `调用了 ${toolCalls.length} 个工具（${toolNames.join('、')}），`
+    }
+    
+    summary += `生成了命令: ${commandResult.command}`
+    
+    if (commandResult.safetyLevel !== 'safe') {
+      summary += `，安全级别: ${commandResult.safetyLevel}`
+    }
+    
+    return summary
   }
 
   // 保留原有的非流式方法（用于兼容性）

@@ -15,6 +15,7 @@ const sshStore = useSSHStore()
 const userInput = ref('')
 const showExamples = ref(false)
 const messagesContainer = ref<HTMLElement | null>(null)
+const expandedReasoning = ref<Set<string>>(new Set())
 
 const examples = [
   '查询 /app/config 的值',
@@ -157,6 +158,35 @@ function formatTime(timestamp: number) {
   return date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
 }
 
+// 切换分析过程展开状态
+function toggleReasoning(messageId: string) {
+  if (expandedReasoning.value.has(messageId)) {
+    expandedReasoning.value.delete(messageId)
+  } else {
+    expandedReasoning.value.add(messageId)
+  }
+}
+
+// 获取步骤类型的显示名称
+function getStepTypeLabel(type: string): string {
+  const labels: Record<string, string> = {
+    'tool_call': '工具调用',
+    'tool_result': '工具结果',
+    'safety_check': '安全检查'
+  }
+  return labels[type] || type
+}
+
+// 获取步骤类型的图标
+function getStepTypeIcon(type: string): string {
+  const icons: Record<string, string> = {
+    'tool_call': '🔧',
+    'tool_result': '📋',
+    'safety_check': '🛡️'
+  }
+  return icons[type] || '•'
+}
+
 // 获取 Tool 显示名称
 function getToolDisplayName(tool: string): string {
   const toolNames: Record<string, string> = {
@@ -280,8 +310,15 @@ function getToolDisplayName(tool: string): string {
                 {{ message.content }}
               </div>
 
-              <!-- 命令结果卡片 -->
-              <div v-else class="ai-command-card">
+              <!-- 命令结果（包含思考文本 + 命令卡片） -->
+              <div v-else-if="message.type === 'command'" class="ai-command-wrapper">
+                <!-- 思考文本 -->
+                <div v-if="message.content" class="ai-message-bubble assistant">
+                  {{ message.content }}
+                </div>
+                
+                <!-- 命令卡片 -->
+                <div class="ai-command-card">
                 <div class="ai-command-card-header">
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <polyline points="4 17 10 11 4 5"/>
@@ -309,6 +346,49 @@ function getToolDisplayName(tool: string): string {
                   </div>
                 </div>
 
+                <!-- AI 分析摘要（可折叠） -->
+                <div v-if="message.reasoningProcess" class="ai-reasoning-section">
+                  <button 
+                    class="ai-reasoning-toggle"
+                    @click="toggleReasoning(message.id)"
+                  >
+                    <svg 
+                      width="12" 
+                      height="12" 
+                      viewBox="0 0 24 24" 
+                      fill="none" 
+                      stroke="currentColor" 
+                      stroke-width="2"
+                      :class="{ 'rotated': expandedReasoning.has(message.id) }"
+                    >
+                      <polyline points="6 9 12 15 18 9"/>
+                    </svg>
+                    <span>分析摘要</span>
+                    <span class="ai-reasoning-summary">{{ message.reasoningProcess.summary }}</span>
+                  </button>
+                  
+                  <div 
+                    v-show="expandedReasoning.has(message.id)" 
+                    class="ai-reasoning-content"
+                  >
+                    <div class="ai-reasoning-steps">
+                      <div 
+                        v-for="(step, index) in message.reasoningProcess.steps" 
+                        :key="index"
+                        class="ai-reasoning-step"
+                        :class="`step-${step.type}`"
+                      >
+                        <div class="step-header">
+                          <span class="step-icon">{{ getStepTypeIcon(step.type) }}</span>
+                          <span class="step-type">{{ getStepTypeLabel(step.type) }}</span>
+                          <span v-if="step.toolName" class="step-tool-name">{{ step.toolName }}</span>
+                        </div>
+                        <div class="step-content">{{ step.content }}</div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
                 <!-- 操作按钮 -->
                 <div class="ai-command-actions">
                   <button
@@ -327,11 +407,12 @@ function getToolDisplayName(tool: string): string {
                     忽略
                   </button>
                 </div>
-              </div>
-            </template>
-          </div>
+                </div><!-- /ai-command-card -->
+              </div><!-- /ai-command-wrapper -->
+            </template><!-- /template v-else AI消息 -->
+          </div><!-- /ai-message-content -->
           <div class="ai-message-time">{{ formatTime(message.timestamp) }}</div>
-        </div>
+        </div><!-- /v-for message -->
 
         <!-- Tool 调用中状态 -->
         <div v-if="aiStore.currentTool" class="ai-message ai-message-assistant">
@@ -353,8 +434,8 @@ function getToolDisplayName(tool: string): string {
             </div>
           </div>
         </div>
-      </template>
-    </div>
+      </template><!-- /template v-else 消息列表 -->
+    </div><!-- /ai-messages -->
 
     <!-- 输入区 -->
     <div class="ai-input-area">
@@ -590,6 +671,13 @@ function getToolDisplayName(tool: string): string {
   padding: 0 4px;
 }
 
+/* 命令包裹容器（思考文本 + 命令卡片） */
+.ai-command-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
 /* 命令卡片 */
 .ai-command-card {
   background: var(--bg-secondary);
@@ -814,6 +902,135 @@ function getToolDisplayName(tool: string): string {
   background: rgba(239, 68, 68, 0.1);
   border-color: rgba(239, 68, 68, 0.3);
   color: #ef4444;
+}
+
+/* AI 分析过程样式 */
+.ai-reasoning-section {
+  margin-top: 12px;
+  border-top: 1px solid var(--border-color);
+  padding-top: 12px;
+}
+
+.ai-reasoning-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 10px;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 12px;
+  color: var(--text-secondary);
+  transition: all 0.2s;
+}
+
+.ai-reasoning-toggle:hover {
+  border-color: var(--accent);
+  color: var(--text-primary);
+}
+
+.ai-reasoning-toggle svg {
+  transition: transform 0.2s;
+  flex-shrink: 0;
+}
+
+.ai-reasoning-toggle svg.rotated {
+  transform: rotate(180deg);
+}
+
+.ai-reasoning-summary {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  margin-left: 8px;
+  color: var(--text-secondary);
+  font-size: 11px;
+}
+
+.ai-reasoning-content {
+  margin-top: 10px;
+  padding: 10px;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.ai-reasoning-steps {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.ai-reasoning-step {
+  padding: 8px 10px;
+  border-radius: 6px;
+  font-size: 12px;
+  border-left: 3px solid transparent;
+}
+
+.ai-reasoning-step.step-tool_call {
+  background: rgba(245, 158, 11, 0.05);
+  border-left-color: #f59e0b;
+}
+
+.ai-reasoning-step.step-tool_result {
+  background: rgba(35, 197, 94, 0.05);
+  border-left-color: #23c55e;
+}
+
+.ai-reasoning-step.step-safety_check {
+  background: rgba(239, 68, 68, 0.05);
+  border-left-color: #ef4444;
+}
+
+.step-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 4px;
+}
+
+.step-icon {
+  font-size: 14px;
+}
+
+.step-type {
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.step-tool-name {
+  font-size: 11px;
+  color: var(--text-secondary);
+  background: var(--bg-secondary);
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.step-content {
+  color: var(--text-secondary);
+  line-height: 1.5;
+  word-break: break-word;
+}
+
+.step-result {
+  margin-top: 6px;
+  padding: 6px 8px;
+  background: var(--bg-secondary);
+  border-radius: 4px;
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  font-size: 11px;
+  color: var(--text-secondary);
+  overflow-x: auto;
+  white-space: pre-wrap;
+  word-break: break-all;
+  max-height: 150px;
+  overflow-y: auto;
 }
 
 /* 按钮样式 */
