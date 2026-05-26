@@ -181,7 +181,8 @@ export const useAIStore = defineStore('ai', () => {
               const finalMsg = messages.value.find(m => m.id === aiMessageId)
               if (finalMsg) {
                 finalMsg.isStreaming = false
-                if (finalResult) {
+                // 只有当 command 不为空时才显示为命令卡片
+                if (finalResult && finalResult.command) {
                   finalMsg.type = 'command'
                   finalMsg.commandResult = finalResult
                   finalMsg.content = finalResult.description

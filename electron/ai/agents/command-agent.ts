@@ -316,7 +316,7 @@ export class CommandGenerationAgent {
     userInput: string,
     context: ConnectionContext,
     _threadId?: string
-  ): Promise<CommandGenerationResult> {
+  ): Promise<CommandGenerationResult | null> {
     const events: StreamEvent[] = []
 
     for await (const event of this.generateStream(userInput, context)) {
@@ -337,13 +337,7 @@ export class CommandGenerationAgent {
     return this.parseStreamEvents(events)
   }
 
-  private parseStreamEvents(events: StreamEvent[]): CommandGenerationResult {
-    // 收集所有 token 内容
-    const content = events
-      .filter((e): e is { type: 'token'; content: string } => e.type === 'token')
-      .map(e => e.content)
-      .join('')
-
+  private parseStreamEvents(events: StreamEvent[]): CommandGenerationResult | null {
     // 尝试解析 generate_command Tool 调用
     for (const event of events) {
       if (event.type === 'tool_end' && event.result) {
@@ -370,14 +364,9 @@ export class CommandGenerationAgent {
       }
     }
 
-    // 默认返回文本回复（非命令）
-    return {
-      command: '',
-      description: content || 'AI 回复',
-      parameters: { flags: [] },
-      safetyLevel: 'safe',
-      warnings: []
-    }
+    // 没有找到 generate_command 结果，说明是文本回复
+    // 返回 null 表示这不是命令生成
+    return null as any
   }
 
   private normalizeError(error: any): Error {

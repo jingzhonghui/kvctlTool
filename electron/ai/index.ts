@@ -101,7 +101,21 @@ export function registerAIIPC() {
       const result = await agent.generate(input, context, threadId)
       console.log('[AI IPC] agent.generate 返回结果:', result)
 
-      return { success: true, result }
+      // result 可能为 null（当 AI 输出文本而非命令时）
+      if (result) {
+        return { success: true, result }
+      } else {
+        return { 
+          success: true, 
+          result: {
+            command: '',
+            description: 'AI 已回复',
+            parameters: { flags: [] },
+            safetyLevel: 'safe' as const,
+            warnings: []
+          }
+        }
+      }
     } catch (error: any) {
       console.error('[AI IPC] AI 生成命令失败:', error)
       return {
