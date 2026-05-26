@@ -483,7 +483,7 @@ function hideTooltip() {
 }
 
 .resizer {
-  width: 1px;
+  width: 2px;
   background: var(--border-color);
   cursor: col-resize;
   flex-shrink: 0;
@@ -504,7 +504,7 @@ function hideTooltip() {
 }
 
 .ai-resizer {
-  width: 1px;
+  width: 2px;
   background: var(--border-color);
   cursor: col-resize;
   flex-shrink: 0;

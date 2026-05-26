@@ -8,7 +8,7 @@ export type StreamEvent =
   | { type: 'token'; content: string }
   | { type: 'tool_start'; tool: string }
   | { type: 'tool_end'; tool: string; result: any }
-  | { type: 'complete'; finalOutput?: any }
+  | { type: 'complete'; finalOutput?: any; isCommandResult: boolean }
   | { type: 'error'; message: string }
 
 // 命令生成结果

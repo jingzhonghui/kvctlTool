@@ -149,7 +149,8 @@ export const useAIStore = defineStore('ai', () => {
             case 'tool_end':
               currentTool.value = null
               console.log('[AI Store] Tool 调用完成:', event.tool, event.result)
-              if (event.result) {
+              // 只有 generate_command 工具的返回才解析为命令结果
+              if (event.tool === 'generate_command' && event.result) {
                 const parsedToolResult = typeof event.result === 'object' && 'command' in event.result
                   ? normalizeCommandResult(event.result)
                   : parseFinalOutput(String(event.result))
@@ -160,11 +161,12 @@ export const useAIStore = defineStore('ai', () => {
               break
 
             case 'complete':
+               console.log('[AI Store] complete:')
               isStreaming.value = false
               isGenerating.value = false
 
               // 优先使用后端返回的结构化 finalOutput，避免纯工具调用时没有 token 导致界面空白
-              if (event.finalOutput && typeof event.finalOutput === 'object' && 'command' in event.finalOutput) {
+              if (event.isCommandResult && event.finalOutput && typeof event.finalOutput === 'object' && 'command' in event.finalOutput) {
                 finalResult = normalizeCommandResult(event.finalOutput)
               } else if (toolCommandResult) {
                 finalResult = toolCommandResult
@@ -247,14 +249,13 @@ export const useAIStore = defineStore('ai', () => {
 
   // 解析最终输出
   function parseFinalOutput(text: string): CommandGenerationResult | null {
-    // 尝试从文本中提取 generate_command 的结果
-    // 格式通常是 Tool 返回的 JSON
+    // 尝试从文本中提取 generate_command 的 JSON 结果
     try {
-      // 查找 JSON 块
-      const jsonMatch = text.match(/\{[\s\S]*?\}/)
+      const jsonMatch = text.match(/\{[\s\S]*?"command"[\s\S]*?\}/)
       if (jsonMatch) {
         const parsed = JSON.parse(jsonMatch[0])
-        if (parsed.command) {
+        // 排除 get_last_output 的返回结构（含 stdout/stderr/exitCode 字段）
+        if (parsed.command && !parsed.stdout && !parsed.stderr && parsed.exitCode === undefined) {
           return {
             command: parsed.command,
             description: parsed.description || 'AI 生成的命令',

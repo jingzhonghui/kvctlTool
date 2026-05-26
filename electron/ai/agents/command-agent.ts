@@ -11,7 +11,7 @@ export type StreamEvent =
   | { type: 'token'; content: string }
   | { type: 'tool_start'; tool: string }
   | { type: 'tool_end'; tool: string; result: any }
-  | { type: 'complete'; finalOutput?: any }
+  | { type: 'complete'; finalOutput?: any; isCommandResult: boolean }
   | { type: 'error'; message: string }
 
 // 命令生成结果结构
@@ -348,12 +348,13 @@ export class CommandGenerationAgent {
         }
       }
       
-      console.log('[AI Agent] 最终输出:', typeof finalOutput === 'string' ? finalOutput.substring(0, 200) : finalOutput)
+      // console.log('[AI Agent] 最终输出:', typeof finalOutput === 'string' ? finalOutput : JSON.stringify(finalOutput, null, 2))
 
       // 流结束
       yield {
         type: 'complete',
-        finalOutput
+        finalOutput,
+        isCommandResult: lastCommandResult != null
       }
 
       // 更新对话历史
