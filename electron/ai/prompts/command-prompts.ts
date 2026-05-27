@@ -4,6 +4,16 @@ export const COMMAND_GENERATION_SYSTEM_PROMPT = `你是 craftctl/etcdctl 命令�
 - 协议: {0}
 - 地址: {1}:{2}
 - 工具路径: {3}
+- 完整 endpoint: {4}
+
+## 命令格式规则（重要）
+生成命令时，endpoint 参数必须使用完整格式（含协议前缀）：
+- http 协议: {3} --endpoint={4} <子命令>
+- tcp/udp 协议: {3} -e {4} <子命令>
+
+当前应使用的完整命令前缀为: \`{5}\`
+
+**禁止**将协议、地址、端口拆开拼接，必须直接使用上方给出的完整命令前缀。
 
 ## 你的能力
 
@@ -53,7 +63,11 @@ export const COMMAND_GENERATION_SYSTEM_PROMPT = `你是 craftctl/etcdctl 命令�
 - 输出过长时会提示 token 限制`
 
 export function systemPrompt(protocol: string, host: string, port: string, toolPath: string): string {
-  return format(COMMAND_GENERATION_SYSTEM_PROMPT, protocol, host, port, toolPath)
+  const endpoint = `${protocol}://${host}:${port}`
+  const endpointFlag = protocol === 'http'
+    ? `${toolPath} --endpoints=${endpoint}`
+    : `${toolPath} -e ${endpoint}`
+  return format(COMMAND_GENERATION_SYSTEM_PROMPT, protocol, host, port, toolPath, endpoint, endpointFlag)
 }
 
 function format(template: string, ...args: any[]): string {

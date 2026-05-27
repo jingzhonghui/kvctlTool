@@ -70,14 +70,7 @@ interface Window {
           }
           threadId?: string
         },
-        onChunk: (event: {
-          type: 'token' | 'tool_start' | 'tool_end' | 'complete' | 'error'
-          content?: string
-          tool?: string
-          result?: any
-          finalOutput?: any
-          message?: string
-        }) => void
+        onChunk: (event: import('../../types/ai').StreamEvent) => void
       ) => () => void
       // 保存命令执行结果
       saveExecutionResult: (result: {
